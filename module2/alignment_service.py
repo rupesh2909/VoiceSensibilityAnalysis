@@ -4,6 +4,10 @@ from config.settings import (
 )
 
 
+# =========================================================
+# OVERLAP
+# =========================================================
+
 def calculate_overlap(
     start1,
     end1,
@@ -11,70 +15,124 @@ def calculate_overlap(
     end2
 ):
 
-    start = max(
+    overlap_start = max(
         start1,
         start2
     )
 
-    end = min(
+    overlap_end = min(
         end1,
         end2
     )
 
-    if end <= start:
+    return max(
+        0.0,
+        overlap_end - overlap_start
+    )
 
-        return 0.0
 
-    return end - start
-
+# =========================================================
+# ALIGN
+# =========================================================
 
 def align_segments(
     whisper_segments,
-    diarization
+    diarization_segments
 ):
+    """
+    Align Whisper timestamped segments with
+    diarization speaker segments.
 
-    diarization_segments = []
+    Parameters
+    ----------
+    whisper_segments:
+        [
+            {
+                "start": float,
+                "end": float,
+                "text": str
+            }
+        ]
 
-    for turn, speaker in diarization:
-
-        diarization_segments.append({
-            "start": turn.start,
-            "end": turn.end,
-            "speaker": speaker
-        })
+    diarization_segments:
+        [
+            {
+                "start": float,
+                "end": float,
+                "speaker": str
+            }
+        ]
+    """
 
     results = []
 
     for segment in whisper_segments:
 
+        whisper_start = float(
+            segment["start"]
+        )
+
+        whisper_end = float(
+            segment["end"]
+        )
+
         best_speaker = "UNKNOWN"
 
         best_overlap = 0.0
+
+        # -------------------------------------------------
+        # Find speaker with maximum temporal overlap
+        # -------------------------------------------------
 
         for speaker_segment in (
             diarization_segments
         ):
 
             overlap = calculate_overlap(
-                segment["start"],
-                segment["end"],
-                speaker_segment["start"],
-                speaker_segment["end"]
+
+                whisper_start,
+
+                whisper_end,
+
+                float(
+                    speaker_segment["start"]
+                ),
+
+                float(
+                    speaker_segment["end"]
+                )
             )
 
             if overlap > best_overlap:
 
-                best_overlap = overlap
+                best_overlap = (
+                    overlap
+                )
 
                 best_speaker = (
-                    speaker_segment["speaker"]
+                    speaker_segment[
+                        "speaker"
+                    ]
                 )
 
         results.append({
-            "start": segment["start"],
-            "end": segment["end"],
-            "text": segment["text"].strip(),
-            "speaker": best_speaker
+
+            "start":
+                whisper_start,
+
+            "end":
+                whisper_end,
+
+            "text":
+                str(
+                    segment.get(
+                        "text",
+                        ""
+                    )
+                ).strip(),
+
+            "speaker":
+                best_speaker
         })
 
     return map_speakers(
@@ -82,18 +140,37 @@ def align_segments(
     )
 
 
+# =========================================================
+# MAP SPEAKERS
+# =========================================================
+
 def map_speakers(
     segments
 ):
+    """
+    Convert pyannote speaker labels to:
+
+        AGENT
+        CUSTOMER
+
+    Current MVP assumption:
+        first detected speaker = AGENT
+        second detected speaker = CUSTOMER
+    """
 
     speakers = []
 
     for segment in segments:
 
-        speaker = segment["speaker"]
+        speaker = (
+            segment.get(
+                "speaker"
+            )
+        )
 
         if (
-            speaker != "UNKNOWN"
+            speaker
+            and speaker != "UNKNOWN"
             and speaker not in speakers
         ):
 
@@ -101,44 +178,54 @@ def map_speakers(
                 speaker
             )
 
-    # -----------------------------------------------------
-    # Current MVP mapping
-    # -----------------------------------------------------
-
     agent_speaker = None
 
     customer_speaker = None
 
-    if len(speakers) > AGENT_SPEAKER_INDEX:
+    if (
+        len(speakers)
+        > AGENT_SPEAKER_INDEX
+    ):
 
         agent_speaker = (
-            speakers[AGENT_SPEAKER_INDEX]
+            speakers[
+                AGENT_SPEAKER_INDEX
+            ]
         )
 
-    if len(speakers) > CUSTOMER_SPEAKER_INDEX:
+    if (
+        len(speakers)
+        > CUSTOMER_SPEAKER_INDEX
+    ):
 
         customer_speaker = (
-            speakers[CUSTOMER_SPEAKER_INDEX]
+            speakers[
+                CUSTOMER_SPEAKER_INDEX
+            ]
         )
 
     # -----------------------------------------------------
-    # Convert to AGENT / CUSTOMER
+    # Apply mapping
     # -----------------------------------------------------
 
     for segment in segments:
 
-        if (
-            segment["speaker"]
-            == agent_speaker
-        ):
+        speaker = (
+            segment.get(
+                "speaker"
+            )
+        )
 
-            segment["speaker"] = "AGENT"
+        if speaker == agent_speaker:
 
-        elif (
-            segment["speaker"]
-            == customer_speaker
-        ):
+            segment["speaker"] = (
+                "AGENT"
+            )
 
-            segment["speaker"] = "CUSTOMER"
+        elif speaker == customer_speaker:
+
+            segment["speaker"] = (
+                "CUSTOMER"
+            )
 
     return segments

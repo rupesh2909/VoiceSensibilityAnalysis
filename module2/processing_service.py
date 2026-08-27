@@ -48,7 +48,7 @@ class ProcessingService:
         )
 
     # =====================================================
-    # DELETE PREVIOUS MODULE 2 RESULT
+    # CLEAR PREVIOUS RESULTS
     # =====================================================
 
     def clear_previous_results(
@@ -68,6 +68,22 @@ class ProcessingService:
 
             conn.execute(
                 """
+                DELETE FROM diarization_segments
+                WHERE call_id = ?
+                """,
+                (call_id,)
+            )
+
+            conn.execute(
+                """
+                DELETE FROM transcript_raw_segments
+                WHERE call_id = ?
+                """,
+                (call_id,)
+            )
+
+            conn.execute(
+                """
                 DELETE FROM transcripts
                 WHERE call_id = ?
                 """,
@@ -77,7 +93,82 @@ class ProcessingService:
             conn.commit()
 
     # =====================================================
-    # PROCESS CALL
+    # EXTRACT DIARIZATION SEGMENTS
+    # =====================================================
+
+    def extract_diarization_segments(
+        self,
+        diarization
+    ):
+
+        segments = []
+
+        for turn, _, speaker in (
+            diarization.itertracks(
+                yield_label=True
+            )
+        ):
+
+            segments.append({
+
+                "start":
+                    float(
+                        turn.start
+                    ),
+
+                "end":
+                    float(
+                        turn.end
+                    ),
+
+                "speaker":
+                    str(
+                        speaker
+                    )
+            })
+
+        return segments
+
+    # =====================================================
+    # SAVE DIARIZATION
+    # =====================================================
+
+    def save_diarization_segments(
+        self,
+        call_id,
+        segments
+    ):
+
+        with get_connection() as conn:
+
+            for segment in segments:
+
+                conn.execute(
+                    """
+                    INSERT INTO diarization_segments
+                    (
+                        call_id,
+                        start_time,
+                        end_time,
+                        speaker
+                    )
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (
+                        call_id,
+
+                        segment["start"],
+
+                        segment["end"],
+
+                        segment["speaker"]
+                    )
+                )
+
+            conn.commit()
+
+    # =====================================================
+    # PROCESS
     # =====================================================
 
     def process(
@@ -89,17 +180,17 @@ class ProcessingService:
 
         try:
 
-            # -------------------------------------------------
-            # Remove old Module 2 results
-            # -------------------------------------------------
+            # =================================================
+            # CLEAR OLD RESULTS
+            # =================================================
 
             self.clear_previous_results(
                 call_id
             )
 
-            # -------------------------------------------------
-            # Convert audio
-            # -------------------------------------------------
+            # =================================================
+            # CONVERT AUDIO
+            # =================================================
 
             if progress_callback:
 
@@ -111,9 +202,9 @@ class ProcessingService:
                 audio_file
             )
 
-            # -------------------------------------------------
-            # Transcription
-            # -------------------------------------------------
+            # =================================================
+            # TRANSCRIPTION
+            # =================================================
 
             update_status(
                 call_id,
@@ -140,26 +231,41 @@ class ProcessingService:
                 )
             )
 
-            full_text = result.get(
-                "text",
-                ""
+            full_text = (
+                result.get(
+                    "text",
+                    ""
+                )
             )
 
-            language = result.get(
-                "language"
+            language = (
+                result.get(
+                    "language"
+                )
             )
 
-            duration = 0.0
+            if not whisper_segments:
 
-            if whisper_segments:
-
-                duration = (
-                    whisper_segments[-1]["end"]
+                raise ValueError(
+                    "Whisper returned no segments."
                 )
 
-            # -------------------------------------------------
-            # Save transcription
-            # -------------------------------------------------
+            duration = max(
+
+                float(
+                    segment.get(
+                        "end",
+                        0.0
+                    )
+                )
+
+                for segment
+                in whisper_segments
+            )
+
+            # =================================================
+            # SAVE TRANSCRIPT + RAW SEGMENTS
+            # =================================================
 
             transcript_id = str(
                 uuid.uuid4()
@@ -182,19 +288,63 @@ class ProcessingService:
                     """,
                     (
                         transcript_id,
+
                         call_id,
+
                         language,
+
                         duration,
+
                         full_text,
+
                         datetime.now().isoformat()
                     )
                 )
 
+                for segment in whisper_segments:
+
+                    conn.execute(
+                        """
+                        INSERT INTO transcript_raw_segments
+                        (
+                            call_id,
+                            start_time,
+                            end_time,
+                            text
+                        )
+                        VALUES (?, ?, ?, ?)
+                        """,
+                        (
+                            call_id,
+
+                            float(
+                                segment.get(
+                                    "start",
+                                    0.0
+                                )
+                            ),
+
+                            float(
+                                segment.get(
+                                    "end",
+                                    0.0
+                                )
+                            ),
+
+                            str(
+                                segment.get(
+                                    "text",
+                                    ""
+                                )
+                            ).strip()
+                        )
+                    )
+
                 conn.commit()
 
-            # -------------------------------------------------
-            # Diarization
-            # -------------------------------------------------
+            # =================================================
+            # DIARIZATION
+            # =================================================
 
             update_status(
                 call_id,
@@ -207,20 +357,39 @@ class ProcessingService:
                     "DIARIZING"
                 )
 
-                waveform = load_audio_for_pyannote(
+            waveform = (
+                load_audio_for_pyannote(
                     wav_file
                 )
+            )
 
-                diarization = (
-                    self.diarization_service
-                    .diarize(
-                        waveform
-                    )
+            diarization = (
+                self.diarization_service
+                .diarize(
+                    waveform
+                )
+            )
+
+            diarization_segments = (
+                self.extract_diarization_segments(
+                    diarization
+                )
+            )
+
+            if not diarization_segments:
+
+                raise ValueError(
+                    "No diarization segments found."
                 )
 
-            # -------------------------------------------------
-            # Align Whisper + diarization
-            # -------------------------------------------------
+            self.save_diarization_segments(
+                call_id,
+                diarization_segments
+            )
+
+            # =================================================
+            # ALIGN
+            # =================================================
 
             if progress_callback:
 
@@ -231,13 +400,19 @@ class ProcessingService:
             aligned_segments = (
                 align_segments(
                     whisper_segments,
-                    diarization
+                    diarization_segments
                 )
             )
 
-            # -------------------------------------------------
-            # Save diarized segments
-            # -------------------------------------------------
+            if not aligned_segments:
+
+                raise ValueError(
+                    "Alignment returned no segments."
+                )
+
+            # =================================================
+            # SAVE ALIGNED TRANSCRIPT
+            # =================================================
 
             with get_connection() as conn:
 
@@ -245,8 +420,7 @@ class ProcessingService:
 
                     conn.execute(
                         """
-                        INSERT INTO
-                        transcript_segments
+                        INSERT INTO transcript_segments
                         (
                             call_id,
                             start_time,
@@ -258,18 +432,22 @@ class ProcessingService:
                         """,
                         (
                             call_id,
+
                             segment["start"],
+
                             segment["end"],
+
                             segment["speaker"],
+
                             segment["text"]
                         )
                     )
 
                 conn.commit()
 
-            # -------------------------------------------------
-            # Complete
-            # -------------------------------------------------
+            # =================================================
+            # COMPLETE
+            # =================================================
 
             update_status(
                 call_id,

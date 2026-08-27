@@ -93,6 +93,60 @@ SENTIMENT_MODEL = (
 
 MAX_SENTIMENT_TEXT_LENGTH = 4000
 
+# =========================================================
+# EMOTION
+# =========================================================
+
+EMOTION_MODEL = (
+    "SamLowe/roberta-base-go_emotions"
+)
+
+MAX_EMOTION_TEXT_LENGTH = 4000
+
+EMOTION_CONFIDENCE_THRESHOLD = 0.20
+
+
+# =========================================================
+# EMOTION MAPPING
+# =========================================================
+#
+# GoEmotions contains "annoyance", which we map to the
+# business category FRUSTRATION.
+#
+# It also contains "disappointment", "confusion",
+# "anger", etc.
+# =========================================================
+
+EMOTION_LABEL_MAPPING = {
+
+    "anger":
+        "ANGER",
+
+    "annoyance":
+        "FRUSTRATION",
+
+    "disappointment":
+        "DISAPPOINTMENT",
+
+    "confusion":
+        "CONFUSION",
+
+    "fear":
+        "FEAR",
+
+    "sadness":
+        "SADNESS",
+
+    "neutral":
+        "NEUTRAL",
+
+    "joy":
+        "JOY",
+
+    "surprise":
+        "SURPRISE"
+}
+
 
 # =========================================================
 # APPLICATION
@@ -148,18 +202,19 @@ ROOT_CAUSE_MODEL = (
 )
 
 ROOT_CAUSE_CATEGORIES = [
-    "Cash withdrawal issue",
-    "UPI issue",
-    "Credit card issue",
-    "Debit card issue",
-    "NEFT/RTGS issue",
-    "Account issue",
-    "Loan issue",
-    "Refund issue",
-    "Fraud issue",
-    "Charges/fees",
-    "Customer service",
-    "Technical issue",
+
+    "Fees / Charges",
+    "Fraud / Unauthorized Transaction",
+    "Mobile Banking",
+    "Internet Banking",
+    "Login / Authentication",
+    "Loan Processing",
+    "Account Opening",
+    "Card Issue",
+    "Service Delay",
+    "Product Features",
+    "Pricing / Interest Rate",
+    "Poor Customer Service",
     "Other"
 ]
 

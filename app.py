@@ -81,7 +81,9 @@ if mode == "Development":
             "Module 1",
             "Module 2",
             "Module 3",
-            "Module 4"
+            "Module 4",
+            "Module 5",
+            "Agentic Analysis"
         ]
     )
 
@@ -161,6 +163,33 @@ if mode == "Development":
             service
         )
 
+    # -----------------------------------------------------
+    # MODULE 5
+    # -----------------------------------------------------
+
+    elif selected_module == "Module 5":
+
+        st.sidebar.info(
+            "Detects customer emotions "
+            "from CUSTOMER conversation."
+        )
+
+        from module5.ui import run_module5
+
+        run_module5()    
+
+    # =========================================================
+    # AGENTIC ANALYSIS
+    # =========================================================
+
+    elif selected_module == "Agentic Analysis":
+
+        from agents.ui import (
+            run_agentic_analysis
+        )
+
+        run_agentic_analysis()
+
 
 # =========================================================
 # FULL PIPELINE MODE
@@ -169,7 +198,7 @@ if mode == "Development":
 else:
 
     st.sidebar.info(
-        "Module 1 → Module 2 → Module 3 → Module 4"
+        "Module 1 → Module 2 → Module 3 → Module 4 + Module 5"
     )
 
     st.subheader(

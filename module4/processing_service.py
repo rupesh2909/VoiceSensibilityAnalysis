@@ -1,6 +1,5 @@
-import uuid
-
 from datetime import datetime
+import uuid
 
 from database.database import (
     get_connection
@@ -24,18 +23,23 @@ class RootCauseProcessingService:
         )
 
     # =====================================================
-    # GET CALLS PROCESSED BY MODULE 3
+    # GET CALLS
     # =====================================================
 
-    def get_calls_for_analysis(self):
+    def get_calls_for_analysis(
+        self
+    ):
 
         query = """
             SELECT
                 c.call_id,
                 c.file_name
+
             FROM calls c
+
             INNER JOIN customer_analysis ca
                 ON c.call_id = ca.call_id
+
             ORDER BY c.created_at DESC
         """
 
@@ -57,9 +61,13 @@ class RootCauseProcessingService:
         query = """
             SELECT
                 text
+
             FROM transcript_segments
+
             WHERE call_id = ?
+
               AND speaker = 'CUSTOMER'
+
             ORDER BY start_time
         """
 
@@ -70,16 +78,17 @@ class RootCauseProcessingService:
                 (call_id,)
             ).fetchall()
 
-        customer_text = " ".join(
+        return " ".join(
+
             row["text"]
+
             for row in rows
+
             if row["text"]
         )
 
-        return customer_text
-
     # =====================================================
-    # GET MODULE 3 RESULT
+    # GET SENTIMENT
     # =====================================================
 
     def get_sentiment(
@@ -91,22 +100,23 @@ class RootCauseProcessingService:
             SELECT
                 sentiment,
                 sentiment_score
+
             FROM customer_analysis
+
             WHERE call_id = ?
+
             LIMIT 1
         """
 
         with get_connection() as conn:
 
-            row = conn.execute(
+            return conn.execute(
                 query,
                 (call_id,)
             ).fetchone()
 
-        return row
-
     # =====================================================
-    # PROCESS CALL
+    # PROCESS
     # =====================================================
 
     def process_call(
@@ -114,8 +124,10 @@ class RootCauseProcessingService:
         call_id
     ):
 
-        sentiment = self.get_sentiment(
-            call_id
+        sentiment = (
+            self.get_sentiment(
+                call_id
+            )
         )
 
         if not sentiment:
@@ -125,17 +137,17 @@ class RootCauseProcessingService:
                 f"for {call_id}"
             )
 
-        sentiment_label = (
+        sentiment_label = str(
             sentiment["sentiment"]
-        )
+        ).upper()
 
         sentiment_score = float(
             sentiment["sentiment_score"]
         )
 
-        # -------------------------------------------------
-        # CUSTOMER TEXT ONLY
-        # -------------------------------------------------
+        # =================================================
+        # CUSTOMER TEXT
+        # =================================================
 
         customer_text = (
             self.get_customer_text(
@@ -150,11 +162,11 @@ class RootCauseProcessingService:
                 f"for {call_id}"
             )
 
-        # -------------------------------------------------
+        # =================================================
         # NON-NEGATIVE CALL
-        # -------------------------------------------------
+        # =================================================
 
-        if sentiment_label.upper() not in (
+        if sentiment_label not in (
             "NEGATIVE",
             "DISSATISFIED"
         ):
@@ -186,101 +198,41 @@ class RootCauseProcessingService:
             self.save_result(
                 call_id,
                 result,
-                customer_text
+                "No dissatisfaction detected."
             )
 
             return result
 
-        # -------------------------------------------------
-        # ROOT CAUSE MODEL
-        # -------------------------------------------------
+        # =================================================
+        # QWEN ROOT CAUSE
+        # =================================================
 
-        root_cause_result = (
+        analysis = (
             self.root_cause_service
-            .identify_root_cause(
+            .analyze(
                 customer_text
             )
         )
 
-        # -------------------------------------------------
-        # HANDLE MODEL RESULT
-        # -------------------------------------------------
+        # =================================================
+        # NORMALIZE
+        # =================================================
 
-        if "category" in root_cause_result:
-
-            category = (
-                root_cause_result[
-                    "category"
-                ]
+        confidence = float(
+            analysis.get(
+                "confidence",
+                0.0
             )
+        )
 
-        elif "root_cause" in root_cause_result:
+        if not analysis.get(
+            "dissatisfied",
+            False
+        ):
 
-            category = (
-                root_cause_result[
-                    "root_cause"
-                ]
-            )
+            dissatisfaction = "NO"
 
-        elif "labels" in root_cause_result:
-
-            category = (
-                root_cause_result[
-                    "labels"
-                ][0]
-            )
-
-        else:
-
-            raise ValueError(
-                "Root cause model did not "
-                "return a category."
-            )
-
-        # -------------------------------------------------
-
-        if "root_cause" in root_cause_result:
-
-            root_cause = (
-                root_cause_result[
-                    "root_cause"
-                ]
-            )
-
-        else:
-
-            root_cause = category
-
-        # -------------------------------------------------
-
-        if "confidence" in root_cause_result:
-
-            confidence = float(
-                root_cause_result[
-                    "confidence"
-                ]
-            )
-
-        elif "scores" in root_cause_result:
-
-            confidence = float(
-                root_cause_result[
-                    "scores"
-                ][0]
-            )
-
-        else:
-
-            raise ValueError(
-                "Root cause model did not "
-                "return confidence."
-            )
-
-        # -------------------------------------------------
-        # DISSATISFACTION
-        # -------------------------------------------------
-
-        if (
+        elif (
             confidence
             >= ROOT_CAUSE_CONFIDENCE_THRESHOLD
         ):
@@ -291,17 +243,6 @@ class RootCauseProcessingService:
 
             dissatisfaction = "UNCERTAIN"
 
-        # -------------------------------------------------
-        # SEVERITY
-        # -------------------------------------------------
-
-        severity = (
-            self._calculate_severity(
-                sentiment_score,
-                confidence
-            )
-        )
-
         result = {
 
             "call_id":
@@ -311,10 +252,16 @@ class RootCauseProcessingService:
                 dissatisfaction,
 
             "category":
-                category,
+                analysis.get(
+                    "root_cause_category",
+                    "Other"
+                ),
 
             "root_cause":
-                root_cause,
+                analysis.get(
+                    "root_cause",
+                    ""
+                ),
 
             "confidence":
                 confidence,
@@ -323,30 +270,39 @@ class RootCauseProcessingService:
                 sentiment_label,
 
             "severity":
-                severity
+                analysis.get(
+                    "severity",
+                    "MEDIUM"
+                ),
+
+            "evidence":
+                analysis.get(
+                    "evidence",
+                    ""
+                )
         }
 
-        # -------------------------------------------------
+        # =================================================
         # SAVE
-        # -------------------------------------------------
+        # =================================================
 
         self.save_result(
             call_id,
             result,
-            customer_text
+            result["evidence"]
         )
 
         return result
 
     # =====================================================
-    # SAVE RESULT
+    # SAVE
     # =====================================================
 
     def save_result(
         self,
         call_id,
         result,
-        customer_text
+        evidence
     ):
 
         root_cause_id = str(
@@ -354,32 +310,16 @@ class RootCauseProcessingService:
         )
 
         created_at = (
-            datetime.now().isoformat()
+            datetime.now()
+            .isoformat()
         )
 
         with get_connection() as conn:
 
-            # ---------------------------------------------
-            # DELETE PREVIOUS RESULT
-            # ---------------------------------------------
-
-            conn.execute(
-                """
-                DELETE FROM
-                    dissatisfaction_root_causes
-                WHERE call_id = ?
-                """,
-                (call_id,)
-            )
-
-            # ---------------------------------------------
-            # INSERT RESULT
-            # ---------------------------------------------
-
             conn.execute(
                 """
                 INSERT INTO
-                    dissatisfaction_root_causes
+                dissatisfaction_root_causes
                 (
                     root_cause_id,
                     call_id,
@@ -391,7 +331,32 @@ class RootCauseProcessingService:
                     evidence,
                     created_at
                 )
+
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+
+                ON CONFLICT(call_id)
+                DO UPDATE SET
+
+                    dissatisfaction =
+                        excluded.dissatisfaction,
+
+                    root_cause_category =
+                        excluded.root_cause_category,
+
+                    root_cause =
+                        excluded.root_cause,
+
+                    severity =
+                        excluded.severity,
+
+                    confidence =
+                        excluded.confidence,
+
+                    evidence =
+                        excluded.evidence,
+
+                    created_at =
+                        excluded.created_at
                 """,
                 (
                     root_cause_id,
@@ -418,35 +383,10 @@ class RootCauseProcessingService:
                         "confidence"
                     ],
 
-                    customer_text,
+                    evidence,
 
                     created_at
                 )
             )
 
             conn.commit()
-
-    # =====================================================
-    # SEVERITY
-    # =====================================================
-
-    def _calculate_severity(
-        self,
-        sentiment_confidence,
-        root_cause_confidence
-    ):
-
-        score = (
-            sentiment_confidence
-            + root_cause_confidence
-        ) / 2
-
-        if score >= 0.85:
-
-            return "HIGH"
-
-        if score >= 0.65:
-
-            return "MEDIUM"
-
-        return "LOW"

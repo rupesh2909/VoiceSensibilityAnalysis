@@ -1,0 +1,9 @@
+streamlit
+python-dotenv
+openai-whisper
+torch
+transformers
+accelerate
+huggingface-hub
+pyannote.audio
+ffmpeg-python

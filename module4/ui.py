@@ -172,38 +172,41 @@ def run_module4(
         )
 
         with col1:
+            st.markdown("Dissatisfaction")
+            st.write(result["dissatisfaction"])
 
-            st.metric(
-                "Dissatisfaction",
-                result[
-                    "dissatisfaction"
-                ]
-            )
+            # st.metric(
+            #     "Dissatisfaction",
+            #     result[
+            #         "dissatisfaction"
+            #     ]
+            # )
 
         with col2:
+            st.markdown("Root Cause")
+            st.write(result["category"])
 
-            st.metric(
-                "Root Cause",
-                result[
-                    "category"
-                ]
-            )
+            # st.metric(
+            #     "Root Cause",
+            #     result[
+            #         "category"
+            #     ]
+            # )
 
         with col3:
 
-            st.metric(
-                "Severity",
-                result[
-                    "severity"
-                ]
-            )
+            st.markdown("Severity")
+            st.write(result["severity"])
+            
 
         with col4:
+            st.markdown("Confidence")
+            st.write(f"{result['confidence']:.1%}")
 
-            st.metric(
-                "Confidence",
-                f"{result['confidence']:.1%}"
-            )
+            # st.metric(
+            #     "Confidence",
+            #     f"{result['confidence']:.1%}"
+            # )
 
         st.write(
             f"Sentiment: "
