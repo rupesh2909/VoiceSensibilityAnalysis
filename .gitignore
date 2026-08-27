@@ -1,10 +1,6 @@
 .venv/
 __pycache__/
 *.pyc
-
-.env
-
 data/audio/*
-data/database/*
-data/sample_files/*
 models/*
+.env
