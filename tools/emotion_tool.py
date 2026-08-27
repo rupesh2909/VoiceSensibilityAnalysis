@@ -194,7 +194,6 @@ class EmotionTool:
 
                     created_at =
                         excluded.created_at
-                )
                 """,
                 (
                     emotion_id,
