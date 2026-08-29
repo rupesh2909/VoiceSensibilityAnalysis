@@ -46,207 +46,71 @@ st.title(
 )
 
 st.caption(
-    "Call recording analysis system"
+    "AI-powered customer conversation intelligence "
+    "and recovery system"
 )
 
-
 # =========================================================
-# SIDEBAR
+# SIDEBAR NAVIGATION
 # =========================================================
 
 st.sidebar.header(
-    "Development / Testing"
+    "Navigation"
 )
 
-mode = st.sidebar.radio(
-    "Mode",
+selected_page = st.sidebar.radio(
+    "Select",
     [
-        "Development",
-        "Full Pipeline"
+        "📁 Upload / Analyze Call",
+        "📊 Manager Dashboard"
     ]
 )
 
+st.sidebar.divider()
+
+# =========================================================
+# CLEAR DATABASE
+# =========================================================
+
 render_reset_database()
 
+st.sidebar.divider()
+
 
 # =========================================================
-# DEVELOPMENT MODE
+# UPLOAD / ANALYZE
 # =========================================================
 
-if mode == "Development":
+if selected_page == "📁 Upload / Analyze Call":
 
-    selected_module = st.sidebar.radio(
-        "Select module",
-        [
-            "Module 1",
-            "Module 2",
-            "Module 3",
-            "Module 4",
-            "Module 5",
-            "Module 6",
-            "Module 7",
-            "Agentic Analysis"
-        ]
+    from module1.ui import run_module1
+
+    from agents.ui import (
+        run_agentic_analysis
     )
 
-    st.sidebar.divider()
+    st.header(
+        "📁 Upload / Analyze Call"
+    )
 
-    # -----------------------------------------------------
-    # MODULE 1
-    # -----------------------------------------------------
+    run_module1()
 
-    if selected_module == "Module 1":
+    st.divider()
 
-        st.sidebar.info(
-            "Tests file selection, "
-            "validation and upload."
-        )
-
-        # Lazy import
-        from module1.ui import run_module1
-
-        run_module1()
-
-    # -----------------------------------------------------
-    # MODULE 2
-    # -----------------------------------------------------
-
-    elif selected_module == "Module 2":
-
-        st.sidebar.info(
-            "Uses files already uploaded "
-            "by Module 1."
-        )
-
-        # Lazy import
-        from module2.ui import run_module2
-
-        run_module2()
-
-    # -----------------------------------------------------
-    # MODULE 3
-    # -----------------------------------------------------
-
-    elif selected_module == "Module 3":
-
-        st.sidebar.info(
-            "Uses CUSTOMER conversation "
-            "already diarized by Module 2."
-        )
-
-        # Lazy import
-        from module3.ui import run_module3
-
-        run_module3()
-
-    # -----------------------------------------------------
-    # MODULE 4
-    # -----------------------------------------------------
-
-    elif selected_module == "Module 4":
-
-        st.sidebar.info(
-            "Uses CUSTOMER text and sentiment "
-            "already processed by Module 3."
-        )
-
-        # Lazy imports
-        from module4.ui import run_module4
-
-        from module4.processing_service import (
-            RootCauseProcessingService
-        )
-
-        service = (
-            RootCauseProcessingService()
-        )
-
-        run_module4(
-            service
-        )
-
-    # -----------------------------------------------------
-    # MODULE 5
-    # -----------------------------------------------------
-
-    elif selected_module == "Module 5":
-
-        st.sidebar.info(
-            "Detects customer emotions "
-            "from CUSTOMER conversation."
-        )
-
-        from module5.ui import run_module5
-
-        run_module5()    
-
-    # -----------------------------------------------------
-    # MODULE 6
-    # -----------------------------------------------------
-
-    elif selected_module == "Module 6":
-
-        st.sidebar.info(
-            "Calculates customer churn risk "
-            "and retention recommendations."
-        )
-
-        from module6.ui import (
-            run_module6
-        )
-
-        run_module6()        
-
-    # -----------------------------------------------------
-    # MODULE 7
-    # -----------------------------------------------------
-
-    elif selected_module == "Module 7":
-
-        st.sidebar.info(
-            "Manager dashboard with "
-            "prioritized customer recovery queue."
-        )
-
-        from module7.ui import (
-            run_module7
-        )
-
-        run_module7()        
-
-    # =========================================================
-    # AGENTIC ANALYSIS
-    # =========================================================
-
-    elif selected_module == "Agentic Analysis":
-
-        from agents.ui import (
-            run_agentic_analysis
-        )
-
-        run_agentic_analysis()
+    run_agentic_analysis()
 
 
 # =========================================================
-# FULL PIPELINE MODE
+# MANAGER DASHBOARD
 # =========================================================
 
-else:
+elif selected_page == "📊 Manager Dashboard":
 
-    st.sidebar.info(
-        "Module 1 → Module 2 → Module 3 → Module 4 + Module 5"
-    )
-
-    st.subheader(
-        "Full Pipeline"
-    )
-
-    st.write(
-        "Full pipeline execution will be added "
-        "after the individual modules are verified."
+    st.header(
+        "📊 Manager Dashboard"
     )
 
     st.info(
-        "For development, use Development mode "
-        "and test each module independently."
+        "Manager dashboard will be connected "
+        "in the next step."
     )

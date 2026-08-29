@@ -98,7 +98,8 @@ Final action:
 
     def __init__(
         self,
-        model_path=None
+        model_path=None,
+        progress_callback=None
     ):
 
         self.slm = LocalSLM(
@@ -112,6 +113,8 @@ Final action:
         self.state_tool = (
             DatabaseTool()
         )
+
+        self.progress_callback = progress_callback
 
     # =====================================================
     # ANALYZE CALL
@@ -383,6 +386,14 @@ Final action:
 
             try:
 
+                self.report_progress(
+                    tool_name,
+                    "running",
+                    self.get_progress_message(
+                        tool_name,
+                    )
+                )
+
                 tool_result = (
                     tool.run(
                         call_id=call_id
@@ -409,14 +420,21 @@ Final action:
                 False
             ):
 
-                event["status"] = (
-                    "success"
+                self.report_progress(
+                    tool_name,
+                    "success",
+                    "Processing completed successfully."
                 )
 
             else:
 
-                event["status"] = (
-                    "error"
+                self.report_progress(
+                    tool_name,
+                    "error",
+                    tool_result.get(
+                        "error",
+                        "Processing failed."
+                    )
                 )
 
             event["result"] = (
@@ -534,6 +552,22 @@ Final action:
             return (
                 "analyze_customer_emotion"
             )
+
+        if not state.get(
+            "churn_risk_complete",
+            False
+        ):
+
+            if state.get(
+                "root_cause_complete",
+                False
+            ):
+
+                return (
+                    "analyze_customer_churn_risk",
+                    "Churn risk analysis is missing "
+                    "and root cause analysis is complete"
+                )            
 
         sentiment = (
             state.get(
@@ -764,3 +798,56 @@ Final action:
                     ""
                 )
         }
+
+    def get_progress_message(
+        self,
+        tool_name
+    ):
+
+        messages = {
+
+            "transcribe_call":
+                "Transcribing the call recording and extracting timestamped speech segments...",
+
+            "diarize_call":
+                "Identifying the different speakers and determining when each speaker is talking...",
+
+            "align_transcript_with_speakers":
+                "Matching the transcription segments with the detected speakers to build the speaker-labelled conversation...",
+
+            "analyze_customer_sentiment":
+                "Analyzing the customer's conversation to determine sentiment and negativity level...",
+
+            "analyze_customer_emotion":
+                "Analyzing the customer's emotional signals including anger, frustration, disappointment and confusion...",
+
+            "identify_dissatisfaction_root_cause":
+                "Analyzing the customer's complaint to determine the primary reason for dissatisfaction...",
+
+            "analyze_customer_churn_risk":
+                "Calculating customer churn risk and evaluating retention and recovery rules..."
+        }
+
+        return messages.get(
+            tool_name,
+            "Processing the call..."
+        )        
+
+    def report_progress(
+        self,
+        module,
+        status,
+        message
+    ):
+
+        if self.progress_callback:
+
+            self.progress_callback(
+                {
+                    "module": module,
+                    "status": status,
+                    "message": message
+                }
+            )        
+
+  

@@ -378,8 +378,51 @@ def run_agentic_analysis():
             "Qwen3 agent is analyzing the call..."
         ):
 
-            agent = (
-                ConversationAgent()
+            progress_placeholder = st.empty()
+
+            def progress_callback(progress):
+
+                module = progress.get(
+                    "module",
+                    "Unknown"
+                )
+
+                status = progress.get(
+                    "status",
+                    "running"
+                )
+
+                message = progress.get(
+                    "message",
+                    "Processing..."
+                )
+
+                if status == "running":
+
+                    progress_placeholder.info(
+                        f"🔄 **Currently processing:** "
+                        f"`{module}`\n\n"
+                        f"{message}"
+                    )
+
+                elif status == "success":
+
+                    progress_placeholder.success(
+                        f"✅ **Completed:** "
+                        f"`{module}`\n\n"
+                        f"{message}"
+                    )
+
+                elif status == "error":
+
+                    progress_placeholder.error(
+                        f"❌ **Failed:** "
+                        f"`{module}`\n\n"
+                        f"{message}"
+                    )
+
+            agent = ConversationAgent(
+                progress_callback=progress_callback
             )
 
             result = (

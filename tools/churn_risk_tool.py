@@ -1,11 +1,4 @@
-import json
-import uuid
-
-from datetime import datetime
-
-from database.database import (
-    get_connection
-)
+from database.database import get_connection
 
 from module6.churn_risk_service import (
     ChurnRiskService
@@ -23,18 +16,35 @@ class ChurnRiskTool:
     name = "analyze_customer_churn_risk"
 
     description = """
-    Calculate customer churn risk using existing
-    sentiment, emotion, dissatisfaction, root cause
-    and customer conversation data.
+    Calculate customer churn risk and determine
+    recovery priority.
 
-    Also evaluates the MVP retention rules and
-    generates recovery recommendations.
+    Uses:
+        - customer sentiment
+        - sentiment score
+        - customer emotion
+        - frustration / anger / disappointment
+        - dissatisfaction
+        - root cause severity
+        - customer conversation
+        - closure intent
+
+    Also evaluates the retention recommendation
+    rules and cross-sell suppression rule.
 
     Requires:
         sentiment
         emotion
         root cause
-        aligned customer transcript
+
+    Produces:
+        churn risk score
+        churn risk level
+        recovery priority
+        risk factors
+        triggered retention rules
+        recommendations
+        cross-sell suppression
     """
 
     def __init__(self):
@@ -53,7 +63,51 @@ class ChurnRiskTool:
     ):
 
         # =================================================
-        # GET EXISTING ANALYSIS
+        # GET CUSTOMER TEXT
+        # =================================================
+
+        with get_connection() as conn:
+
+            rows = conn.execute(
+                """
+                SELECT
+                    text
+                FROM transcript_segments
+                WHERE call_id = ?
+                  AND speaker = 'CUSTOMER'
+                ORDER BY start_time
+                """,
+                (call_id,)
+            ).fetchall()
+
+        if not rows:
+
+            return {
+                "success": False,
+                "call_id": call_id,
+                "tool": self.name,
+                "error":
+                    "No CUSTOMER transcript found."
+            }
+
+        customer_text = " ".join(
+            row["text"]
+            for row in rows
+            if row["text"]
+        ).strip()
+
+        if not customer_text:
+
+            return {
+                "success": False,
+                "call_id": call_id,
+                "tool": self.name,
+                "error":
+                    "CUSTOMER transcript is empty."
+            }
+
+        # =================================================
+        # GET SENTIMENT
         # =================================================
 
         with get_connection() as conn:
@@ -70,22 +124,30 @@ class ChurnRiskTool:
                 (call_id,)
             ).fetchone()
 
+        if not sentiment:
+
+            return {
+                "success": False,
+                "call_id": call_id,
+                "tool": self.name,
+                "error":
+                    "Sentiment analysis is required first."
+            }
+
+        # =================================================
+        # GET EMOTION
+        # =================================================
+
+        with get_connection() as conn:
+
             emotion = conn.execute(
                 """
                 SELECT
                     primary_emotion,
-                    emotion_score,
                     anger_score,
                     frustration_score,
                     disappointment_score,
-                    confusion_score,
-                    fear_score,
-                    sadness_score,
-                    neutral_score,
-                    joy_score,
-                    surprise_score,
-                    emotion_intensity,
-                    confidence
+                    confusion_score
                 FROM customer_emotions
                 WHERE call_id = ?
                 LIMIT 1
@@ -93,15 +155,28 @@ class ChurnRiskTool:
                 (call_id,)
             ).fetchone()
 
+        if not emotion:
+
+            return {
+                "success": False,
+                "call_id": call_id,
+                "tool": self.name,
+                "error":
+                    "Emotion analysis is required first."
+            }
+
+        # =================================================
+        # GET ROOT CAUSE
+        # =================================================
+
+        with get_connection() as conn:
+
             root_cause = conn.execute(
                 """
                 SELECT
                     dissatisfaction,
                     root_cause_category,
-                    root_cause,
-                    severity,
-                    confidence,
-                    evidence
+                    severity
                 FROM dissatisfaction_root_causes
                 WHERE call_id = ?
                 LIMIT 1
@@ -109,143 +184,52 @@ class ChurnRiskTool:
                 (call_id,)
             ).fetchone()
 
-            transcript_rows = conn.execute(
-                """
-                SELECT
-                    text
-                FROM transcript_segments
-                WHERE call_id = ?
-                  AND speaker = 'CUSTOMER'
-                ORDER BY start_time
-                """,
-                (call_id,)
-            ).fetchall()
-
-            call = conn.execute(
-                """
-                SELECT
-                    call_id,
-                    file_name
-                FROM calls
-                WHERE call_id = ?
-                """,
-                (call_id,)
-            ).fetchone()
-
-        # =================================================
-        # VALIDATE CALL
-        # =================================================
-
-        if not call:
-
-            return {
-                "success": False,
-                "call_id": call_id,
-                "error": "Call not found."
-            }
-
-        # =================================================
-        # VALIDATE REQUIRED ANALYSIS
-        # =================================================
-
-        if not sentiment:
-
-            return {
-                "success": False,
-                "call_id": call_id,
-                "error": (
-                    "Sentiment analysis is missing. "
-                    "Run Module 3 first."
-                )
-            }
-
-        if not emotion:
-
-            return {
-                "success": False,
-                "call_id": call_id,
-                "error": (
-                    "Emotion analysis is missing. "
-                    "Run Module 5 first."
-                )
-            }
-
         if not root_cause:
 
             return {
                 "success": False,
                 "call_id": call_id,
-                "error": (
-                    "Root cause analysis is missing. "
-                    "Run Module 4 first."
-                )
-            }
-
-        if not transcript_rows:
-
-            return {
-                "success": False,
-                "call_id": call_id,
-                "error": (
-                    "No CUSTOMER transcript found."
-                )
+                "tool": self.name,
+                "error":
+                    "Root cause analysis is required first."
             }
 
         # =================================================
-        # CUSTOMER TEXT
+        # CALCULATE CHURN RISK
         # =================================================
 
-        customer_text = " ".join(
+        result = self.service.calculate_score(
 
-            row["text"]
+            sentiment=
+                sentiment["sentiment"],
 
-            for row in transcript_rows
+            sentiment_score=
+                sentiment["sentiment_score"],
 
-            if row["text"]
+            primary_emotion=
+                emotion["primary_emotion"],
+
+            anger_score=
+                emotion["anger_score"],
+
+            frustration_score=
+                emotion["frustration_score"],
+
+            disappointment_score=
+                emotion["disappointment_score"],
+
+            dissatisfaction=
+                root_cause["dissatisfaction"],
+
+            severity=
+                root_cause["severity"],
+
+            customer_text=
+                customer_text
         )
 
         # =================================================
-        # CALCULATE CHURN SCORE
-        # =================================================
-
-        result = (
-            self.service.calculate_score(
-
-                sentiment=
-                    sentiment["sentiment"],
-
-                sentiment_score=
-                    sentiment["sentiment_score"],
-
-                primary_emotion=
-                    emotion["primary_emotion"],
-
-                anger_score=
-                    emotion["anger_score"],
-
-                frustration_score=
-                    emotion["frustration_score"],
-
-                disappointment_score=
-                    emotion["disappointment_score"],
-
-                dissatisfaction=
-                    root_cause["dissatisfaction"],
-
-                severity=
-                    root_cause["severity"],
-
-                customer_text=
-                    customer_text
-            )
-        )
-
-        churn_score = (
-            result["churn_risk_score"]
-        )
-
-        # =================================================
-        # EVALUATE RETENTION RULES
+        # RETENTION RULES
         # =================================================
 
         triggered_rules = evaluate_rules(
@@ -269,12 +253,8 @@ class ChurnRiskTool:
                 root_cause["root_cause_category"],
 
             churn_risk_score=
-                churn_score
+                result["churn_risk_score"]
         )
-
-        # =================================================
-        # RECOMMENDATIONS
-        # =================================================
 
         recommendations = (
             aggregate_recommendations(
@@ -288,158 +268,122 @@ class ChurnRiskTool:
             )
         )
 
-        # -------------------------------------------------
-        # Rule 10 is a business rule and should influence
-        # recommendations but not recovery priority.
-        # -------------------------------------------------
+        # =================================================
+        # CROSS-SELL SUPPRESSION
+        # =================================================
 
-        business_rule_triggered = any(
+        cross_sell_suppression = (
 
-            rule.get("rule_id")
-            == "RULE_10"
+            result["churn_risk_score"] > 75
 
-            for rule
-            in triggered_rules
+            and str(
+                sentiment["sentiment"]
+            ).upper() == "NEGATIVE"
         )
 
         # =================================================
         # SAVE
         # =================================================
 
-        churn_analysis_id = str(
-            uuid.uuid4()
-        )
+        with get_connection() as conn:
 
-        created_at = (
-            datetime.now()
-            .isoformat()
-        )
+            conn.execute(
+                """
+                INSERT INTO churn_risk_analysis
+                (
+                    call_id,
+                    churn_risk_score,
+                    churn_risk_level,
+                    recovery_priority,
+                    closure_intent,
+                    risk_factors,
+                    score_breakdown,
+                    triggered_rules,
+                    recommendations,
+                    cross_sell_suppression,
+                    created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
 
-        try:
+                ON CONFLICT(call_id)
+                DO UPDATE SET
 
-            with get_connection() as conn:
+                    churn_risk_score =
+                        excluded.churn_risk_score,
 
-                conn.execute(
-                    """
-                    INSERT INTO churn_risk_analysis
-                    (
-                        churn_analysis_id,
-                        call_id,
-                        churn_risk_score,
-                        churn_risk_level,
-                        recovery_priority,
-                        customer_intent,
-                        closure_intent,
-                        fraud_intent,
-                        risk_factors,
-                        triggered_rules,
-                        recommendations,
-                        created_at
-                    )
+                    churn_risk_level =
+                        excluded.churn_risk_level,
 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    recovery_priority =
+                        excluded.recovery_priority,
 
-                    ON CONFLICT(call_id)
-                    DO UPDATE SET
+                    closure_intent =
+                        excluded.closure_intent,
 
-                        churn_risk_score =
-                            excluded.churn_risk_score,
+                    risk_factors =
+                        excluded.risk_factors,
 
-                        churn_risk_level =
-                            excluded.churn_risk_level,
+                    score_breakdown =
+                        excluded.score_breakdown,
 
-                        recovery_priority =
-                            excluded.recovery_priority,
+                    triggered_rules =
+                        excluded.triggered_rules,
 
-                        customer_intent =
-                            excluded.customer_intent,
+                    recommendations =
+                        excluded.recommendations,
 
-                        closure_intent =
-                            excluded.closure_intent,
+                    cross_sell_suppression =
+                        excluded.cross_sell_suppression,
 
-                        fraud_intent =
-                            excluded.fraud_intent,
+                    created_at =
+                        excluded.created_at
+                """,
+                (
+                    call_id,
 
-                        risk_factors =
-                            excluded.risk_factors,
+                    result[
+                        "churn_risk_score"
+                    ],
 
-                        triggered_rules =
-                            excluded.triggered_rules,
+                    result[
+                        "churn_risk_level"
+                    ],
 
-                        recommendations =
-                            excluded.recommendations,
+                    recovery_priority,
 
-                        created_at =
-                            excluded.created_at
-                    """,
-                    (
-                        churn_analysis_id,
-
-                        call_id,
-
-                        churn_score,
-
+                    int(
                         result[
-                            "churn_risk_level"
-                        ],
+                            "closure_intent"
+                        ]
+                    ),
 
-                        recovery_priority,
+                    str(
+                        result[
+                            "risk_factors"
+                        ]
+                    ),
 
-                        (
-                            "Product Closure Intent"
-                            if result[
-                                "closure_intent"
-                            ]
-                            else "Complaint / Service Issue"
-                        ),
+                    str(
+                        result[
+                            "score_breakdown"
+                        ]
+                    ),
 
-                        int(
-                            result[
-                                "closure_intent"
-                            ]
-                        ),
+                    str(
+                        triggered_rules
+                    ),
 
-                        int(
-                            any(
-                                rule.get(
-                                    "rule_id"
-                                ) == "RULE_2"
+                    str(
+                        recommendations
+                    ),
 
-                                for rule
-                                in triggered_rules
-                            )
-                        ),
-
-                        json.dumps(
-                            result[
-                                "risk_factors"
-                            ]
-                        ),
-
-                        json.dumps(
-                            triggered_rules
-                        ),
-
-                        json.dumps(
-                            recommendations
-                        ),
-
-                        created_at
+                    int(
+                        cross_sell_suppression
                     )
                 )
+            )
 
-                conn.commit()
-
-        except Exception as e:
-
-            return {
-                "success": False,
-                "call_id": call_id,
-                "error": (
-                    "Failed to save churn "
-                    f"analysis: {str(e)}"
-                )
-            }
+            conn.commit()
 
         # =================================================
         # RETURN
@@ -449,14 +393,14 @@ class ChurnRiskTool:
 
             "success": True,
 
-            "call_id":
-                call_id,
+            "call_id": call_id,
 
-            "tool":
-                self.name,
+            "tool": self.name,
 
             "churn_risk_score":
-                churn_score,
+                result[
+                    "churn_risk_score"
+                ],
 
             "churn_risk_level":
                 result[
@@ -488,5 +432,5 @@ class ChurnRiskTool:
                 recommendations,
 
             "cross_sell_suppression":
-                business_rule_triggered
+                cross_sell_suppression
         }

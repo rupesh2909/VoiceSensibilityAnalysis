@@ -188,6 +188,30 @@ class DatabaseTool:
                 (call_id,)
             ).fetchone()
 
+            # =================================================
+            # CHURN RISK
+            # =================================================
+
+            churn_risk = conn.execute(
+                """
+                SELECT
+                    churn_risk_score,
+                    churn_risk_level,
+                    recovery_priority,
+                    customer_intent,
+                    closure_intent,
+                    risk_factors,
+                    score_breakdown,
+                    triggered_rules,
+                    recommendations,
+                    cross_sell_suppression
+                FROM churn_risk_analysis
+                WHERE call_id = ?
+                LIMIT 1
+                """,
+                (call_id,)
+            ).fetchone()            
+
         # =====================================================
         # STATE
         # =====================================================
@@ -231,6 +255,9 @@ class DatabaseTool:
             "root_cause_complete":
                 root_cause is not None,
 
+            "churn_risk_complete":
+                churn_risk is not None,                
+
             "speaker_count":
                 speaker_count,
 
@@ -256,5 +283,10 @@ class DatabaseTool:
             "root_cause":
                 dict(root_cause)
                 if root_cause
-                else None
+                else None,
+
+            "churn_risk":
+                dict(churn_risk)
+                if churn_risk
+                else None                
         }

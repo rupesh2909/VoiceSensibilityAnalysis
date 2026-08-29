@@ -26,6 +26,10 @@ from tools.root_cause_tool import (
     RootCauseTool
 )
 
+from tools.churn_risk_tool import (
+    ChurnRiskTool
+)
+
 
 class ToolRegistry:
 
@@ -57,7 +61,10 @@ class ToolRegistry:
                 EmotionTool,
 
             "identify_dissatisfaction_root_cause":
-                RootCauseTool
+                RootCauseTool,
+
+            "analyze_customer_churn_risk":
+                ChurnRiskTool
         }
 
         self._instances = {}

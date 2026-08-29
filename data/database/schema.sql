@@ -197,6 +197,10 @@ CREATE TABLE IF NOT EXISTS churn_risk_analysis (
 
     recommendations TEXT,
 
+    score_breakdown TEXT,
+
+    cross_sell_suppression INTEGER DEFAULT 0,
+
     created_at TEXT NOT NULL,
 
     FOREIGN KEY(call_id)
