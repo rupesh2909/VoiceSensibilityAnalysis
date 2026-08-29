@@ -124,7 +124,9 @@ class LocalSLM:
 
                 tokenize=False,
 
-                add_generation_prompt=True
+                add_generation_prompt=True,
+
+                enable_thinking=False
             )
         )
 

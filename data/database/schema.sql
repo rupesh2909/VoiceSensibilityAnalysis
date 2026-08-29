@@ -1,5 +1,19 @@
+CREATE TABLE IF NOT EXISTS customers (
+    customer_id TEXT PRIMARY KEY,
+
+    customer_name TEXT,
+
+    customer_segment TEXT,
+
+    customer_value TEXT,
+
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS calls (
     call_id TEXT PRIMARY KEY,
+
+    customer_id TEXT,
 
     file_name TEXT NOT NULL,
 
@@ -11,7 +25,10 @@ CREATE TABLE IF NOT EXISTS calls (
 
     status TEXT,
 
-    created_at TEXT
+    created_at TEXT,
+
+    FOREIGN KEY(customer_id)
+        REFERENCES customers(customer_id)
 );
 
 
@@ -150,6 +167,37 @@ CREATE TABLE IF NOT EXISTS transcript_raw_segments (
     end_time REAL,
 
     text TEXT,
+
+    FOREIGN KEY(call_id)
+        REFERENCES calls(call_id)
+        ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS churn_risk_analysis (
+
+    churn_analysis_id TEXT PRIMARY KEY,
+
+    call_id TEXT NOT NULL UNIQUE,
+
+    churn_risk_score REAL NOT NULL,
+
+    churn_risk_level TEXT NOT NULL,
+
+    recovery_priority TEXT NOT NULL,
+
+    customer_intent TEXT,
+
+    closure_intent INTEGER DEFAULT 0,
+
+    fraud_intent INTEGER DEFAULT 0,
+
+    risk_factors TEXT,
+
+    triggered_rules TEXT,
+
+    recommendations TEXT,
+
+    created_at TEXT NOT NULL,
 
     FOREIGN KEY(call_id)
         REFERENCES calls(call_id)

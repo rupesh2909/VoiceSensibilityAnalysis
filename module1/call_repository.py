@@ -15,7 +15,8 @@ def create_call(
     file_name,
     file_path,
     file_size,
-    source
+    source,
+    customer_id=None
 ):
 
     call_id = (
@@ -32,6 +33,7 @@ def create_call(
             INSERT INTO calls
             (
                 call_id,
+                customer_id,
                 file_name,
                 file_path,
                 file_size,
@@ -39,10 +41,11 @@ def create_call(
                 status,
                 created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 call_id,
+                customer_id,
                 file_name,
                 str(file_path),
                 file_size,

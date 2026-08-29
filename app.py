@@ -83,6 +83,8 @@ if mode == "Development":
             "Module 3",
             "Module 4",
             "Module 5",
+            "Module 6",
+            "Module 7",
             "Agentic Analysis"
         ]
     )
@@ -177,6 +179,40 @@ if mode == "Development":
         from module5.ui import run_module5
 
         run_module5()    
+
+    # -----------------------------------------------------
+    # MODULE 6
+    # -----------------------------------------------------
+
+    elif selected_module == "Module 6":
+
+        st.sidebar.info(
+            "Calculates customer churn risk "
+            "and retention recommendations."
+        )
+
+        from module6.ui import (
+            run_module6
+        )
+
+        run_module6()        
+
+    # -----------------------------------------------------
+    # MODULE 7
+    # -----------------------------------------------------
+
+    elif selected_module == "Module 7":
+
+        st.sidebar.info(
+            "Manager dashboard with "
+            "prioritized customer recovery queue."
+        )
+
+        from module7.ui import (
+            run_module7
+        )
+
+        run_module7()        
 
     # =========================================================
     # AGENTIC ANALYSIS

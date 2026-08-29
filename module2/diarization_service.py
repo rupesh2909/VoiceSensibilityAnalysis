@@ -1,4 +1,5 @@
 import os
+import torch
 
 from config.settings import (
     DIARIZATION_MODEL,
@@ -57,6 +58,8 @@ class DiarizationService:
                 token=token
             )
         )
+
+        self.pipeline.to(torch.device("cuda"))
 
         if self.pipeline is None:
 

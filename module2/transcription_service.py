@@ -16,7 +16,8 @@ class TranscriptionService:
         )
 
         self.model = whisper.load_model(
-            WHISPER_MODEL
+            WHISPER_MODEL,
+            device="cuda"
         )
 
         print(

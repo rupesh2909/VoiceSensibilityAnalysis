@@ -198,7 +198,7 @@ Final action:
                 raw_response = (
                     self.slm.generate(
                         messages,
-                        max_new_tokens=200
+                        max_new_tokens=128
                     )
                 )
 

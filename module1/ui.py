@@ -1,3 +1,7 @@
+from .customer_repository import (
+    create_customer
+)
+
 import streamlit as st
 
 from config.settings import (
@@ -36,6 +40,39 @@ def run_module1():
     st.subheader(
         "Module 1 — File Upload & Validation"
     )
+
+    # =====================================================
+    # CUSTOMER INFORMATION
+    # =====================================================
+
+    st.markdown(
+        "### Customer Information"
+    )
+
+    customer_name = st.text_input(
+        "Customer Name",
+        value="Demo Customer"
+    )
+
+    customer_segment = st.selectbox(
+        "Customer Segment",
+        [
+            "RETAIL",
+            "HNI",
+            "WEALTH",
+            "CORPORATE"
+        ]
+    )
+
+    customer_value = st.selectbox(
+        "Customer Value",
+        [
+            "STANDARD",
+            "GOLD",
+            "PLATINUM",
+            "HIGH_AUM"
+        ]
+    )    
 
     # =====================================================
     # SAMPLE FILES
@@ -119,6 +156,30 @@ def run_module1():
         st.warning(
             "Please select or upload "
             "at least one audio file."
+        )
+
+        return []
+
+    # =====================================================
+    # CUSTOMER
+    # =====================================================
+
+    try:
+
+        customer_id = create_customer(
+            customer_name=customer_name,
+            customer_segment=customer_segment,
+            customer_value=customer_value
+        )
+
+        st.info(
+            f"Customer created: {customer_id}"
+        )
+
+    except Exception as e:
+
+        st.error(
+            f"Unable to create customer: {e}"
         )
 
         return []
@@ -210,7 +271,8 @@ def run_module1():
                     file_name=file_name,
                     file_path=audio_path,
                     file_size=item["size"],
-                    source=item["source"]
+                    source=item["source"],
+                    customer_id=customer_id
                 )
 
                 st.write(
