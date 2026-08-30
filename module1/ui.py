@@ -187,9 +187,9 @@ def render_file_selection():
                     selected_name
                 ]
 
-                st.success(
-                    f"Selected: {selected_name}"
-                )
+                # st.success(
+                #     f"Selected: {selected_name}"
+                # )
 
     return (
         selected_source,
@@ -318,10 +318,238 @@ def process_selected_file(
 
             return None
 
+def get_tool_summary(
+    module,
+    result
+):
+
+    if not result:
+        return ""
+
+    # Some tools may return:
+    # {
+    #     "success": True,
+    #     "result": {...}
+    # }
+    #
+    # Unwrap that structure if present.
+
+    if isinstance(result, dict):
+
+        nested_result = result.get(
+            "result"
+        )
+
+        if isinstance(
+            nested_result,
+            dict
+        ):
+
+            result = nested_result
+
+    # -----------------------------------------------------
+    # TRANSCRIPTION
+    # -----------------------------------------------------
+
+    if module == "transcribe_call":
+
+        segments = result.get(
+            "segments_created"
+        )
+
+        if segments is not None:
+
+            return (
+                f"{segments} speech segments created"
+            )
+
+    # -----------------------------------------------------
+    # DIARIZATION
+    # -----------------------------------------------------
+
+    elif module == "diarize_call":
+
+        speaker_count = result.get(
+            "speaker_count"
+        )
+
+        if speaker_count is not None:
+
+            return (
+                f"{speaker_count} speakers detected"
+            )
+
+    # -----------------------------------------------------
+    # ALIGNMENT
+    # -----------------------------------------------------
+
+    elif module == "align_transcript_with_speakers":
+
+        segments = result.get(
+            "segments_created"
+        )
+
+        if segments is not None:
+
+            return (
+                f"{segments} conversation segments aligned"
+            )
+
+    # -----------------------------------------------------
+    # SENTIMENT
+    # -----------------------------------------------------
+
+    elif module == "analyze_customer_sentiment":
+
+        sentiment = result.get(
+            "sentiment"
+        )
+
+        score = result.get(
+            "score"
+        )
+
+        if sentiment:
+
+            if score is not None:
+
+                return (
+                    f"{str(sentiment).title()} "
+                    f"· {float(score) * 100:.0f}% confidence"
+                )
+
+            return str(
+                sentiment
+            ).title()
+
+    # -----------------------------------------------------
+    # EMOTION
+    # -----------------------------------------------------
+
+    elif module == "analyze_customer_emotion":
+
+        emotion = result.get(
+            "primary_emotion"
+        )
+
+        score = result.get(
+            "emotion_score"
+        )
+
+        if emotion:
+
+            if score is not None:
+
+                return (
+                    f"{str(emotion).title()} "
+                    f"· {float(score) * 100:.0f}% intensity"
+                )
+
+            return str(
+                emotion
+            ).title()
+
+    # -----------------------------------------------------
+    # ROOT CAUSE
+    # -----------------------------------------------------
+
+    elif module == "identify_dissatisfaction_root_cause":
+
+        category = result.get(
+            "root_cause_category"
+        )
+
+        severity = result.get(
+            "severity"
+        )
+
+        if category:
+
+            detail = str(
+                category
+            )
+
+            if severity:
+
+                detail += (
+                    f" · {str(severity).upper()}"
+                )
+
+            return detail
+
+    # -----------------------------------------------------
+    # CHURN RISK
+    # -----------------------------------------------------
+
+    elif module == "analyze_customer_churn_risk":
+
+        score = result.get(
+            "churn_risk_score"
+        )
+
+        level = result.get(
+            "churn_risk_level"
+        )
+
+        if score is not None:
+
+            detail = str(
+                score
+            )
+
+            if level:
+
+                detail += (
+                    f" / 100 · "
+                    f"{str(level).upper()}"
+                )
+
+            else:
+
+                detail += " / 100"
+
+            return detail
+
+    return ""
+
 def render_live_progress(
     placeholder,
     messages
 ):
+
+    tool_labels = {
+        "transcribe_call":
+            "Transcription",
+
+        "diarize_call":
+            "Speaker Detection",
+
+        "align_transcript_with_speakers":
+            "Speaker Alignment",
+
+        "analyze_customer_sentiment":
+            "Sentiment Analysis",
+
+        "analyze_customer_emotion":
+            "Emotion Analysis",
+
+        "identify_dissatisfaction_root_cause":
+            "Root Cause Analysis",
+
+        "analyze_customer_churn_risk":
+            "Churn Risk Analysis"
+    }
+
+    latest = {}
+
+    for item in messages:
+
+        module = item.get(
+            "module",
+            ""
+        )
+
+        latest[module] = item
 
     with placeholder.container():
 
@@ -329,44 +557,76 @@ def render_live_progress(
             "### 🤖 Live Analysis"
         )
 
-        if not messages:
-
-            st.caption(
-                "Waiting for analysis to begin..."
-            )
-
-            return
-
-        for item in messages:
+        for module, item in latest.items():
 
             status = item.get(
                 "status",
                 "running"
             )
 
-            message = item.get(
-                "message",
-                "Processing..."
+            label = tool_labels.get(
+                module,
+                module.replace(
+                    "_",
+                    " "
+                ).title()
+            )
+
+            result = item.get(
+                "result"
             )
 
             if status == "running":
 
                 st.markdown(
-                    f"🔄 **{message}**"
+                    f"""
+                    <div class="live-step running">
+                        <span class="live-icon">◌</span>
+                        <span>{label}</span>
+                        <span class="live-status">
+                            Processing...
+                        </span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
                 )
 
             elif status == "success":
 
+                summary = get_tool_summary(
+                    module,
+                    result
+                )
+
                 st.markdown(
-                    f"✓ {message}"
+                    f"""
+                    <div class="live-step completed">
+                        <span class="live-icon">✓</span>
+                        <div class="live-content">
+                            <strong>{label}</strong>
+                            <div class="live-detail">{summary}</div>
+                        </div>
+                        <span class="live-status">Completed</span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
                 )
 
             elif status == "error":
 
                 st.markdown(
-                    f"❌ {message}"
+                    f"""
+                    <div class="live-step failed">
+                        <span class="live-icon">!</span>
+                        <span>{label}</span>
+                        <span class="live-status">
+                            Failed
+                        </span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
                 )
-
+                
 # =========================================================
 # MAIN
 # =========================================================
@@ -563,12 +823,12 @@ def run_module1():
             else:
 
                 st.success(
-                    "✅ Analysis completed successfully."
+                    "Analysis completed successfully."
                 )
 
-                st.json(
-                    result
-                )
+                # st.json(
+                #     result
+                # )
 
         else:
 

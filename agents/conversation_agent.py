@@ -423,7 +423,8 @@ Final action:
                 self.report_progress(
                     tool_name,
                     "success",
-                    "Processing completed successfully."
+                    "Processing completed successfully.",
+                    tool_result
                 )
 
             else:
@@ -434,7 +435,8 @@ Final action:
                     tool_result.get(
                         "error",
                         "Processing failed."
-                    )
+                    ),
+                    tool_result
                 )
 
             event["result"] = (
@@ -835,7 +837,8 @@ Final action:
         self,
         module,
         status,
-        message
+        message,
+        result=None
     ):
 
         if self.progress_callback:
@@ -844,7 +847,8 @@ Final action:
                 {
                     "module": module,
                     "status": status,
-                    "message": message
+                    "message": message,
+                    "result": result
                 }
             )        
 
