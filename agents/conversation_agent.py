@@ -564,9 +564,7 @@ Final action:
             ):
 
                 return (
-                    "analyze_customer_churn_risk",
-                    "Churn risk analysis is missing "
-                    "and root cause analysis is complete"
+                    "analyze_customer_churn_risk"
                 )            
 
         sentiment = (

@@ -2,10 +2,6 @@ import streamlit as st
 
 from dotenv import load_dotenv
 
-from dev_tools.reset_database import (
-    render_reset_database
-)
-
 from config.settings import (
     APP_TITLE,
     APP_ICON,
@@ -33,7 +29,66 @@ initialize_database()
 st.set_page_config(
     page_title=APP_TITLE,
     page_icon=APP_ICON,
-    layout=PAGE_LAYOUT
+    layout=PAGE_LAYOUT,
+    initial_sidebar_state="collapsed"
+)
+
+
+# =========================================================
+# GLOBAL UI
+# =========================================================
+
+st.markdown(
+    """
+    <style>
+
+    /* Hide sidebar */
+    [data-testid="stSidebar"] {
+        display: none;
+    }
+
+    /* Use more of the screen */
+    .block-container {
+        padding-top: 1rem;
+        padding-bottom: 0.5rem;
+        max-width: 1500px;
+    }
+
+    /* Compact page title */
+    h1 {
+        margin-top: 0;
+        margin-bottom: 0.1rem;
+        padding-top: 0;
+        line-height: 1.15;
+    }
+
+    /* Compact caption below title */
+    .block-container p {
+        margin-bottom: 0.35rem;
+    }
+
+    /* Compact tabs */
+    .stTabs {
+        margin-top: 0;
+    }
+
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 6px;
+        margin-bottom: 0;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        padding: 7px 18px;
+    }
+
+    /* Reduce vertical gaps between Streamlit blocks */
+    .element-container {
+        margin-bottom: 0.25rem;
+    }
+
+    </style>
+    """,
+    unsafe_allow_html=True
 )
 
 
@@ -41,8 +96,8 @@ st.set_page_config(
 # HEADER
 # =========================================================
 
-st.title(
-    "🎧 Voice Sensibility Analysis"
+st.markdown(
+    "## 🎧 Voice Sensibility Analysis"
 )
 
 st.caption(
@@ -50,67 +105,41 @@ st.caption(
     "and recovery system"
 )
 
+
 # =========================================================
-# SIDEBAR NAVIGATION
+# TOP NAVIGATION
 # =========================================================
 
-st.sidebar.header(
-    "Navigation"
-)
-
-selected_page = st.sidebar.radio(
-    "Select",
+tab_analyze, tab_dashboard = st.tabs(
     [
-        "📁 Upload / Analyze Call",
+        "📁 Analyze Call",
         "📊 Manager Dashboard"
     ]
 )
 
-st.sidebar.divider()
 
 # =========================================================
-# CLEAR DATABASE
+# ANALYZE CALL
 # =========================================================
 
-render_reset_database()
-
-st.sidebar.divider()
-
-
-# =========================================================
-# UPLOAD / ANALYZE
-# =========================================================
-
-if selected_page == "📁 Upload / Analyze Call":
+with tab_analyze:
 
     from module1.ui import run_module1
 
-    from agents.ui import (
-        run_agentic_analysis
-    )
-
-    st.header(
-        "📁 Upload / Analyze Call"
-    )
-
     run_module1()
-
-    st.divider()
-
-    run_agentic_analysis()
 
 
 # =========================================================
 # MANAGER DASHBOARD
 # =========================================================
 
-elif selected_page == "📊 Manager Dashboard":
+with tab_dashboard:
 
     st.header(
         "📊 Manager Dashboard"
     )
 
     st.info(
-        "Manager dashboard will be connected "
-        "in the next step."
+        "Module 7 — Manager Dashboard will be "
+        "implemented here."
     )
