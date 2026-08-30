@@ -1,5 +1,10 @@
 import streamlit as st
 
+from .analysis_worker import (
+    start_analysis,
+    get_analysis_status
+)
+
 from config.settings import (
     SAMPLE_FILES_DIR
 )
@@ -18,7 +23,8 @@ from .call_repository import (
 )
 
 from .customer_repository import (
-    get_customer
+    get_customer,
+    search_customers
 )
 
 
@@ -52,53 +58,322 @@ def render_customer_information():
         "### 👤 Customer Information"
     )
 
-    col1, col2 = st.columns(2)
+    # -----------------------------------------------------
+    # SESSION STATE
+    # -----------------------------------------------------
 
-    with col1:
+    defaults = {
+        "customer_mode": "search",
+        "customer_id": "",
+        "customer_name": "",
+        "customer_segment": "RETAIL",
+        "customer_value": "STANDARD"
+    }
 
-        customer_id = st.text_input(
-            "Customer ID",
-            placeholder="e.g. CUST-FC88BB8F"
+    for key, value in defaults.items():
+
+        if key not in st.session_state:
+
+            st.session_state[key] = value
+
+    # -----------------------------------------------------
+    # CUSTOMER SEARCH DIALOG
+    # -----------------------------------------------------
+
+    @st.dialog(
+        "🔍 Search Customer",
+        width="small"
+    )
+    def customer_search_dialog():
+
+        st.caption(
+            "Search by customer name or customer ID."
         )
-    
-    with col2:
 
-        customer_name = st.text_input(
+        search_term = st.text_input(
+            "Customer",
+            placeholder="Enter name or Customer ID"
+        )
+
+        if search_term.strip():
+
+            customers = search_customers(
+                search_term
+            )
+
+            if customers:
+
+                st.markdown(
+                    "#### Matching Customers"
+                )
+
+                options = {}
+
+                for customer in customers:
+
+                    customer_id = customer[0]
+                    customer_name = (
+                        customer[1]
+                        or "Unnamed Customer"
+                    )
+
+                    segment = (
+                        customer[2]
+                        or "RETAIL"
+                    )
+
+                    value = (
+                        customer[3]
+                        or "STANDARD"
+                    )
+
+                    label = (
+                        f"{customer_name}  ·  "
+                        f"{customer_id}\n"
+                        f"{segment}  ·  {value}"
+                    )
+
+                    options[label] = customer
+
+                selected_label = st.radio(
+                    "Select customer",
+                    list(options.keys()),
+                    index=None
+                )
+
+                if st.button(
+                    "Select Customer",
+                    type="primary",
+                    use_container_width=True,
+                    disabled=(
+                        selected_label is None
+                    )
+                ):
+
+                    selected = options[
+                        selected_label
+                    ]
+
+                    st.session_state[
+                        "customer_id"
+                    ] = selected[0] or ""
+
+                    st.session_state[
+                        "customer_name"
+                    ] = selected[1] or ""
+
+                    st.session_state[
+                        "customer_segment"
+                    ] = selected[2] or "RETAIL"
+
+                    st.session_state[
+                        "customer_value"
+                    ] = selected[3] or "STANDARD"
+
+                    st.session_state[
+                        "customer_mode"
+                    ] = "existing"
+
+                    st.rerun()
+
+            else:
+
+                st.warning(
+                    "No matching customer found."
+                )
+
+                st.caption(
+                    "You can add this customer as a new record."
+                )
+
+                if st.button(
+                    "➕ Add New Customer",
+                    type="primary",
+                    use_container_width=True
+                ):
+
+                    st.session_state[
+                        "customer_mode"
+                    ] = "new"
+
+                    st.session_state[
+                        "customer_id"
+                    ] = ""
+
+                    st.session_state[
+                        "customer_name"
+                    ] = ""
+
+                    st.session_state[
+                        "customer_segment"
+                    ] = "RETAIL"
+
+                    st.session_state[
+                        "customer_value"
+                    ] = "STANDARD"
+
+                    st.rerun()
+
+    # -----------------------------------------------------
+    # ROW 1
+    # -----------------------------------------------------
+
+    col_id, col_name = st.columns(
+        [1, 1],
+        gap="medium"
+    )
+
+    with col_id:
+
+        st.markdown(
+            "Customer ID"
+        )
+
+        search_label = (
+            "🔍  "
+            + (
+                st.session_state[
+                    "customer_id"
+                ]
+                or "Search customer..."
+            )
+        )
+
+        if st.button(
+            search_label,
+            use_container_width=True,
+            key="customer_search_button"
+        ):
+
+            customer_search_dialog()
+
+    with col_name:
+
+        st.text_input(
             "Customer Name",
-            placeholder="Enter customer name"
+            key="customer_name",
+            disabled=(
+                st.session_state[
+                    "customer_mode"
+                ] != "new"
+            ),
+            placeholder="Customer name"
         )
 
-    col1, col2 = st.columns(2)
+    # -----------------------------------------------------
+    # ROW 2
+    # -----------------------------------------------------
 
-    with col1:
+    col_segment, col_value = st.columns(
+        [1, 1],
+        gap="medium"
+    )
 
-        customer_segment = st.selectbox(
+    with col_segment:
+
+        st.selectbox(
             "Customer Segment",
             [
                 "RETAIL",
                 "PREMIUM",
                 "SME",
                 "CORPORATE"
-            ]
+            ],
+            key="customer_segment",
+            disabled=(
+                st.session_state[
+                    "customer_mode"
+                ] != "new"
+            )
         )
 
-    with col2:
+    with col_value:
 
-        customer_value = st.selectbox(
+        st.selectbox(
             "Customer Value",
             [
                 "STANDARD",
                 "SILVER",
                 "GOLD",
                 "PLATINUM"
-            ]
+            ],
+            key="customer_value",
+            disabled=(
+                st.session_state[
+                    "customer_mode"
+                ] != "new"
+            )
         )
 
+    # -----------------------------------------------------
+    # NEW CUSTOMER MODE
+    # -----------------------------------------------------
+
+    if (
+        st.session_state[
+            "customer_mode"
+        ] == "new"
+    ):
+
+        st.caption(
+            "New customer — enter the customer details "
+            "above. A Customer ID will be generated "
+            "automatically."
+        )
+
+        if st.button(
+            "🔍 Search Existing Customer",
+            use_container_width=True,
+            key="search_existing_customer"
+        ):
+
+            st.session_state[
+                "customer_mode"
+            ] = "search"
+
+            st.session_state[
+                "customer_id"
+            ] = ""
+
+            st.session_state[
+                "customer_name"
+            ] = ""
+
+            st.session_state[
+                "customer_segment"
+            ] = "RETAIL"
+
+            st.session_state[
+                "customer_value"
+            ] = "STANDARD"
+
+            st.rerun()
+
+    # -----------------------------------------------------
+    # RETURN CUSTOMER
+    # -----------------------------------------------------
+
     return {
-        "customer_id": customer_id.strip(),
-        "customer_name": customer_name.strip(),
-        "customer_segment": customer_segment,
-        "customer_value": customer_value
+
+        "customer_id":
+            st.session_state[
+                "customer_id"
+            ].strip(),
+
+        "customer_name":
+            st.session_state[
+                "customer_name"
+            ].strip(),
+
+        "customer_segment":
+            st.session_state[
+                "customer_segment"
+            ],
+
+        "customer_value":
+            st.session_state[
+                "customer_value"
+            ]
     }
 
 
@@ -517,28 +792,67 @@ def render_live_progress(
     messages
 ):
 
-    tool_labels = {
-        "transcribe_call":
-            "Transcription",
+    tool_info = {
 
-        "diarize_call":
-            "Speaker Detection",
+        "transcribe_call": {
+            "label": "Transcription",
+            "description":
+                "Extracting timestamped speech segments"
+        },
 
-        "align_transcript_with_speakers":
-            "Speaker Alignment",
+        "diarize_call": {
+            "label": "Speaker Detection",
+            "description":
+                "Identifying speakers and when they are talking"
+        },
 
-        "analyze_customer_sentiment":
-            "Sentiment Analysis",
+        "align_transcript_with_speakers": {
+            "label": "Speaker Alignment",
+            "description":
+                "Matching speech segments with detected speakers"
+        },
 
-        "analyze_customer_emotion":
-            "Emotion Analysis",
+        "analyze_customer_sentiment": {
+            "label": "Sentiment Analysis",
+            "description":
+                "Determining the customer's sentiment"
+        },
 
-        "identify_dissatisfaction_root_cause":
-            "Root Cause Analysis",
+        "analyze_customer_emotion": {
+            "label": "Emotion Analysis",
+            "description":
+                "Detecting frustration, anger, disappointment and confusion"
+        },
 
-        "analyze_customer_churn_risk":
-            "Churn Risk Analysis"
+        "identify_dissatisfaction_root_cause": {
+            "label": "Root Cause Analysis",
+            "description":
+                "Identifying the primary reason for dissatisfaction"
+        },
+
+        "analyze_customer_churn_risk": {
+            "label": "Churn Risk Analysis",
+            "description":
+                "Evaluating churn risk and recovery priority"
+        }
     }
+
+    tool_order = [
+
+        "transcribe_call",
+
+        "diarize_call",
+
+        "align_transcript_with_speakers",
+
+        "analyze_customer_sentiment",
+
+        "analyze_customer_emotion",
+
+        "identify_dissatisfaction_root_cause",
+
+        "analyze_customer_churn_risk"
+    ]
 
     latest = {}
 
@@ -553,80 +867,491 @@ def render_live_progress(
 
     with placeholder.container():
 
-        st.markdown(
-            "### 🤖 Live Analysis"
+        completed = 0
+
+        # =================================================
+        # TWO COLUMN LAYOUT
+        # =================================================
+
+        for row_start in range(
+            0,
+            len(tool_order),
+            2
+        ):
+
+            row_modules = tool_order[
+                row_start:
+                row_start + 2
+            ]
+
+            columns = st.columns(
+                2,
+                gap="small"
+            )
+
+            for column, module in zip(
+                columns,
+                row_modules
+            ):
+
+                with column:
+
+                    item = latest.get(
+                        module
+                    )
+
+                    info = tool_info[
+                        module
+                    ]
+
+                    label = info[
+                        "label"
+                    ]
+
+                    description = info[
+                        "description"
+                    ]
+
+                    # -----------------------------------------
+                    # STATUS
+                    # -----------------------------------------
+
+                    if item is None:
+
+                        st.info(
+                            f"○ **{label}**\n\n"
+                            f"{description}"
+                        )
+
+                    else:
+
+                        status = item.get(
+                            "status",
+                            "running"
+                        )
+
+                        result = item.get(
+                            "result"
+                        )
+
+                        # -------------------------------------
+                        # RUNNING
+                        # -------------------------------------
+
+                        if status == "running":
+
+                            st.info(
+                                f"🔄 **{label}**\n\n"
+                                f"{description}"
+                            )
+
+                        # -------------------------------------
+                        # SUCCESS
+                        # -------------------------------------
+
+                        elif status == "success":
+
+                            summary = get_tool_summary(
+                                module,
+                                result
+                            )
+
+                            completed += 1
+
+                            detail = (
+                                summary
+                                if summary
+                                else
+                                "Processing completed successfully."
+                            )
+
+                            st.success(
+                                f"✓ **{label}**\n\n{detail}"
+                            )
+
+                        # -------------------------------------
+                        # ERROR
+                        # -------------------------------------
+
+                        elif status == "error":
+
+                            st.error(
+                                f"❌ **{label}**\n\n"
+                                f"{item.get(
+                                    'message',
+                                    'Processing failed.'
+                                )}"
+                            )
+
+                        # -------------------------------------
+                        # UNKNOWN
+                        # -------------------------------------
+
+                        else:
+
+                            st.info(
+                                f"○ **{label}**\n\n"
+                                f"{description}"
+                            )
+
+        # =================================================
+        # PROGRESS
+        # =================================================
+
+        total = 7
+
+        st.caption(
+            f"**{completed} of {total}** "
+            "analysis steps completed"
         )
 
-        for module, item in latest.items():
+@st.dialog(
+    "🤖 AI Analysis",
+    width="small",
+    dismissible=True
+)
+def open_live_analysis(
+    call_id
+):
 
-            status = item.get(
-                "status",
-                "running"
+    st.caption(
+        f"Processing call `{call_id}`"
+    )
+
+    # -------------------------------------------------
+    # Auto-refreshing fragment
+    # -------------------------------------------------
+
+    @st.fragment(
+        run_every=0.75
+    )
+    def live_status():
+
+        job = get_analysis_status(
+            call_id
+        )
+
+        if job is None:
+
+            st.warning(
+                "Analysis job could not be found."
             )
 
-            label = tool_labels.get(
-                module,
-                module.replace(
-                    "_",
-                    " "
-                ).title()
+            return
+
+        messages = job.get(
+            "messages",
+            []
+        )
+
+        status = job.get(
+            "status"
+        )
+
+
+        # ---------------------------------------------
+        # Progress
+        # ---------------------------------------------
+
+        render_live_progress(
+            st.empty(),
+            messages
+        )
+
+        # ---------------------------------------------
+        # Starting / model loading
+        # ---------------------------------------------
+
+        if not messages:
+
+            st.info(
+                "🔄 Initializing AI analysis and "
+                "loading required models..."
             )
 
-            result = item.get(
+        # ---------------------------------------------
+        # Job status
+        # ---------------------------------------------
+
+        if status == "completed":
+
+            st.success(
+                "✅ Analysis completed successfully."
+            )
+
+            st.session_state[
+                "analysis_complete"
+            ] = True
+
+            st.session_state[
+                "analysis_result"
+            ] = job.get(
                 "result"
             )
 
-            if status == "running":
+        elif status == "failed":
 
-                st.markdown(
-                    f"""
-                    <div class="live-step running">
-                        <span class="live-icon">◌</span>
-                        <span>{label}</span>
-                        <span class="live-status">
-                            Processing...
-                        </span>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
+            st.error(
+                "❌ Analysis failed."
+            )
+
+            if job.get("error"):
+
+                st.caption(
+                    job["error"]
                 )
 
-            elif status == "success":
+        elif status in (
+            "queued",
+            "running"
+        ):
 
-                summary = get_tool_summary(
-                    module,
-                    result
-                )
+            # Analysis is still running.
+            # Do not show a completion message.
+            pass
 
-                st.markdown(
-                    f"""
-                    <div class="live-step completed">
-                        <span class="live-icon">✓</span>
-                        <div class="live-content">
-                            <strong>{label}</strong>
-                            <div class="live-detail">{summary}</div>
-                        </div>
-                        <span class="live-status">Completed</span>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
+    live_status()                                 
+                        
+# def render_analysis_results(
+#     placeholder,
+#     messages
+# ):
 
-            elif status == "error":
+#     results = {}
 
-                st.markdown(
-                    f"""
-                    <div class="live-step failed">
-                        <span class="live-icon">!</span>
-                        <span>{label}</span>
-                        <span class="live-status">
-                            Failed
-                        </span>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-                
+#     for item in messages:
+
+#         if item.get("status") != "success":
+#             continue
+
+#         module = item.get(
+#             "module",
+#             ""
+#         )
+
+#         result = item.get(
+#             "result"
+#         )
+
+#         if not result:
+#             continue
+
+#         # Unwrap nested result if necessary
+#         if isinstance(result, dict):
+
+#             nested_result = result.get(
+#                 "result"
+#             )
+
+#             if isinstance(
+#                 nested_result,
+#                 dict
+#             ):
+
+#                 result = nested_result
+
+#         results[module] = result
+
+#     if not results:
+#         return
+
+#     with placeholder.container():
+
+#         st.markdown(
+#             "### 📊 Analysis Results"
+#         )
+
+#         # =================================================
+#         # SENTIMENT + EMOTION
+#         # =================================================
+
+#         sentiment = results.get(
+#             "analyze_customer_sentiment"
+#         )
+
+#         emotion = results.get(
+#             "analyze_customer_emotion"
+#         )
+
+#         if sentiment or emotion:
+
+#             col1, col2 = st.columns(2)
+
+#             # ---------------------------------------------
+#             # Sentiment
+#             # ---------------------------------------------
+
+#             with col1:
+
+#                 if sentiment:
+
+#                     sentiment_label = sentiment.get(
+#                         "sentiment",
+#                         "N/A"
+#                     )
+
+#                     sentiment_score = sentiment.get(
+#                         "score"
+#                     )
+
+#                     st.markdown(
+#                         "#### Sentiment"
+#                     )
+
+#                     if sentiment_score is not None:
+
+#                         st.metric(
+#                             "Customer Sentiment",
+#                             str(
+#                                 sentiment_label
+#                             ).title(),
+#                             f"{float(sentiment_score) * 100:.0f}%"
+#                         )
+
+#                     else:
+
+#                         st.metric(
+#                             "Customer Sentiment",
+#                             str(
+#                                 sentiment_label
+#                             ).title()
+#                         )
+
+#             # ---------------------------------------------
+#             # Emotion
+#             # ---------------------------------------------
+
+#             with col2:
+
+#                 if emotion:
+
+#                     emotion_label = emotion.get(
+#                         "primary_emotion",
+#                         "N/A"
+#                     )
+
+#                     emotion_score = emotion.get(
+#                         "emotion_score"
+#                     )
+
+#                     st.markdown(
+#                         "#### Emotion"
+#                     )
+
+#                     if emotion_score is not None:
+
+#                         st.metric(
+#                             "Primary Emotion",
+#                             str(
+#                                 emotion_label
+#                             ).title(),
+#                             f"{float(emotion_score) * 100:.0f}%"
+#                         )
+
+#                     else:
+
+#                         st.metric(
+#                             "Primary Emotion",
+#                             str(
+#                                 emotion_label
+#                             ).title()
+#                         )
+
+#         # =================================================
+#         # ROOT CAUSE
+#         # =================================================
+
+#         root_cause = results.get(
+#             "identify_dissatisfaction_root_cause"
+#         )
+
+#         if root_cause:
+
+#             st.markdown(
+#                 "#### 🔎 Dissatisfaction Root Cause"
+#             )
+
+#             col1, col2 = st.columns(2)
+
+#             with col1:
+
+#                 st.metric(
+#                     "Category",
+#                     root_cause.get(
+#                         "root_cause_category",
+#                         "N/A"
+#                     )
+#                 )
+
+#             with col2:
+
+#                 st.metric(
+#                     "Severity",
+#                     str(
+#                         root_cause.get(
+#                             "severity",
+#                             "N/A"
+#                         )
+#                     ).upper()
+#                 )
+
+#             cause = root_cause.get(
+#                 "root_cause"
+#             )
+
+#             if cause:
+
+#                 st.info(
+#                     cause
+#                 )
+
+#         # =================================================
+#         # CHURN RISK
+#         # =================================================
+
+#         churn = results.get(
+#             "analyze_customer_churn_risk"
+#         )
+
+#         if churn:
+
+#             st.markdown(
+#                 "#### ⚠️ Churn Risk"
+#             )
+
+#             col1, col2, col3 = st.columns(3)
+
+#             with col1:
+
+#                 st.metric(
+#                     "Risk Score",
+#                     f"{churn.get('churn_risk_score', 'N/A')} / 100"
+#                 )
+
+#             with col2:
+
+#                 st.metric(
+#                     "Risk Level",
+#                     str(
+#                         churn.get(
+#                             "churn_risk_level",
+#                             "N/A"
+#                         )
+#                     ).upper()
+#                 )
+
+#             with col3:
+
+#                 st.metric(
+#                     "Priority",
+#                     str(
+#                         churn.get(
+#                             "recovery_priority",
+#                             "N/A"
+#                         )
+#                     ).upper()
+#                 )
+
 # =========================================================
 # MAIN
 # =========================================================
@@ -704,22 +1429,71 @@ def run_module1():
     # CUSTOMER VALIDATION
     # =====================================================
 
-    customer_record = get_customer(
-        customer["customer_id"]
-    )
+    if (
+        st.session_state.get(
+            "customer_mode"
+        ) == "new"
+    ):
 
-    if customer_record is None:
+        if not customer["customer_name"]:
 
-        st.error(
-            f"Customer ID `{customer['customer_id']}` "
-            "was not found."
+            st.warning(
+                "Please enter the customer name."
+            )
+
+            return
+
+        # ---------------------------------------------
+        # Create new customer
+        # ---------------------------------------------
+
+        from .customer_repository import (
+            create_customer
         )
 
-        st.info(
-            "For now, please enter an existing Customer ID."
+        customer_id = create_customer(
+            customer_name=customer[
+                "customer_name"
+            ],
+            customer_segment=customer[
+                "customer_segment"
+            ],
+            customer_value=customer[
+                "customer_value"
+            ]
         )
 
-        return
+        customer[
+            "customer_id"
+        ] = customer_id
+
+        st.session_state[
+            "customer_id"
+        ] = customer_id
+
+        st.session_state[
+            "customer_mode"
+        ] = "existing"
+
+    else:
+
+        customer_record = get_customer(
+            customer["customer_id"]
+        )
+
+        if customer_record is None:
+
+            st.error(
+                f"Customer ID `{customer['customer_id']}` "
+                "was not found."
+            )
+
+            st.info(
+                "Use Search Customer to select an existing "
+                "customer or add a new customer."
+            )
+
+            return
 
     # =====================================================
     # CREATE CALL
@@ -760,91 +1534,28 @@ def run_module1():
     # AGENTIC ANALYSIS
     # =====================================================
 
-    from agents.conversation_agent import (
-        ConversationAgent
+    st.session_state[
+        "analysis_job_id"
+    ] = call_id
+
+    st.session_state[
+        "analysis_complete"
+    ] = False
+
+    st.session_state[
+        "analysis_result"
+    ] = None    
+
+    # -----------------------------------------------------
+    # Start background worker
+    # -----------------------------------------------------
+
+    start_analysis(
+        call_id
     )
 
-    progress_messages = []
+    open_live_analysis(
+        call_id
+    )        
 
-    progress_placeholder = st.empty()
 
-
-    def update_progress(event):
-
-        progress_messages.append(
-            event
-        )
-
-        render_live_progress(
-            progress_placeholder,
-            progress_messages
-        )    
-
-    try:
-
-        agent = ConversationAgent(
-            progress_callback=update_progress
-        )
-
-        result = agent.analyze_call(
-            call_id
-        )
-
-        # Store result for subsequent reruns
-        st.session_state[
-            "analysis_result"
-        ] = result
-
-        st.session_state[
-            "analysis_complete"
-        ] = True
-
-        # -------------------------------------------------
-        # Basic execution result
-        # -------------------------------------------------
-
-        if result.get("action") == "final":
-
-            analysis = result.get(
-                "analysis",
-                {}
-            )
-
-            if analysis.get("status") == "TOOL_FAILED":
-
-                st.error(
-                    "❌ Analysis stopped because a tool failed."
-                )
-
-                st.json(
-                    analysis
-                )
-
-            else:
-
-                st.success(
-                    "Analysis completed successfully."
-                )
-
-                # st.json(
-                #     result
-                # )
-
-        else:
-
-            st.warning(
-                "The AI agent stopped without "
-                "producing a final result."
-            )
-
-            st.json(
-                result
-            )
-
-    except Exception as e:
-
-        st.error(
-            "❌ AI analysis failed."
-        )
-
-        st.exception(e)

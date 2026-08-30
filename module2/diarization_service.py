@@ -8,10 +8,18 @@ from config.settings import (
     AUDIO_SAMPLE_RATE
 )
 
+# =========================================================
+# DIARIZATION MODEL CACHE
+# =========================================================
+
+_diarization_pipeline = None
+
 
 class DiarizationService:
 
     def __init__(self):
+
+        global _diarization_pipeline
 
         token = os.getenv(
             "HF_TOKEN"
@@ -24,53 +32,65 @@ class DiarizationService:
                 "in .env"
             )
 
-        print(
-            "Loading diarization model..."
-        )
+        if _diarization_pipeline is None:
 
-        # -------------------------------------------------
-        # Lazy import
-        # -------------------------------------------------
-
-        try:
-
-            from pyannote.audio import (
-                Pipeline
+            print(
+                "Loading diarization model..."
             )
 
-        except Exception as e:
+            # -------------------------------------------------
+            # Lazy import
+            # -------------------------------------------------
 
-            raise RuntimeError(
-                "Unable to import pyannote.audio.\n\n"
-                "Make sure Module 2 dependencies "
-                "are installed in the active "
-                "virtual environment.\n\n"
-                f"Original error: {e}"
-            ) from e
+            try:
 
-        # -------------------------------------------------
-        # Load model
-        # -------------------------------------------------
+                from pyannote.audio import (
+                    Pipeline
+                )
 
-        self.pipeline = (
-            Pipeline.from_pretrained(
-                DIARIZATION_MODEL,
-                token=token
+            except Exception as e:
+
+                raise RuntimeError(
+                    "Unable to import pyannote.audio.\n\n"
+                    "Make sure Module 2 dependencies "
+                    "are installed in the active "
+                    "virtual environment.\n\n"
+                    f"Original error: {e}"
+                ) from e
+
+            # -------------------------------------------------
+            # Load model
+            # -------------------------------------------------
+
+            _diarization_pipeline = (
+                Pipeline.from_pretrained(
+                    DIARIZATION_MODEL,
+                    token=token
+                )
             )
-        )
 
-        self.pipeline.to(torch.device("cuda"))
-
-        if self.pipeline is None:
-
-            raise RuntimeError(
-                "PyAnnote pipeline could not "
-                "be loaded."
+            _diarization_pipeline.to(
+                torch.device("cuda")
             )
 
-        print(
-            "Diarization model loaded."
-        )
+            if _diarization_pipeline is None:
+
+                raise RuntimeError(
+                    "PyAnnote pipeline could not "
+                    "be loaded."
+                )
+
+            print(
+                "Diarization model loaded."
+            )
+
+        else:
+
+            print(
+                "Reusing cached diarization model."
+            )
+
+        self.pipeline = _diarization_pipeline
 
     def diarize(
         self,

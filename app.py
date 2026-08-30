@@ -86,70 +86,7 @@ st.markdown(
         margin-bottom: 0.25rem;
     }
 
-    /* =====================================================
-    LIVE ANALYSIS
-    ===================================================== */
 
-    .live-step {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 7px 12px;
-        margin-bottom: 5px;
-        border-radius: 8px;
-        font-size: 0.92rem;
-    }
-    
-    .live-detail {
-        font-size: 0.78rem;
-        opacity: 0.65;
-        margin-top: 2px;
-}    
-
-    .live-icon {
-        width: 20px;
-        text-align: center;
-        font-weight: 700;
-    }
-
-    .live-status {
-        margin-left: auto;
-        font-size: 0.78rem;
-        opacity: 0.65;
-    }
-
-    .live-step.completed {
-        opacity: 0.8;
-    }
-
-    .live-step.failed {
-        opacity: 0.9;
-    }
-
-    .live-step.running {
-        font-weight: 600;
-    }
-
-    .live-step.running .live-icon {
-        animation: livePulse 1.2s ease-in-out infinite;
-    }
-
-    @keyframes livePulse {
-        0% {
-            opacity: 0.35;
-            transform: scale(0.9);
-        }
-
-        50% {
-            opacity: 1;
-            transform: scale(1.15);
-        }
-
-        100% {
-            opacity: 0.35;
-            transform: scale(0.9);
-        }
-    }
 
     </style>
     """,

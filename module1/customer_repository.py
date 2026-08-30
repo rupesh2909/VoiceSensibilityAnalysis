@@ -83,6 +83,44 @@ def get_all_customers():
             """
         ).fetchall()
 
+def search_customers(
+    search_term
+):
+
+    search_term = (
+        search_term or ""
+    ).strip()
+
+    if not search_term:
+
+        return []
+
+    pattern = (
+        f"%{search_term}%"
+    )
+
+    with get_connection() as conn:
+
+        return conn.execute(
+            """
+            SELECT
+                customer_id,
+                customer_name,
+                customer_segment,
+                customer_value,
+                created_at
+            FROM customers
+            WHERE
+                customer_id LIKE ?
+                OR customer_name LIKE ?
+            ORDER BY created_at DESC
+            """,
+            (
+                pattern,
+                pattern
+            )
+        ).fetchall()        
+
 
 def get_customer_call_history(
     customer_id

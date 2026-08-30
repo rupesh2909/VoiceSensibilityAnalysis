@@ -6,23 +6,46 @@ from config.settings import (
 )
 
 
+# =========================================================
+# WHISPER MODEL CACHE
+# =========================================================
+
+_whisper_model = None
+
+
 class TranscriptionService:
 
     def __init__(self):
 
-        print(
-            f"Loading Whisper model: "
-            f"{WHISPER_MODEL}"
-        )
+        global _whisper_model
 
-        self.model = whisper.load_model(
-            WHISPER_MODEL,
-            device="cuda"
-        )
+        if _whisper_model is None:
 
-        print(
-            "Whisper model loaded."
-        )
+            print(
+                f"Loading Whisper model: "
+                f"{WHISPER_MODEL}"
+            )
+
+            _whisper_model = whisper.load_model(
+                WHISPER_MODEL,
+                device="cuda"
+            )
+
+            print(
+                "Whisper model loaded."
+            )
+
+        else:
+
+            print(
+                "Reusing cached Whisper model."
+            )
+
+        self.model = _whisper_model
+
+    # =====================================================
+    # TRANSCRIBE
+    # =====================================================
 
     def transcribe(
         self,
