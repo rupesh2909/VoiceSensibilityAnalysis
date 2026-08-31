@@ -137,12 +137,6 @@ with tab_analyze:
 
 with tab_dashboard:
 
-    st.header(
-        "📊 Manager Dashboard",
-        anchor=False
-    )
+    from module6.manager_dashboard import render_manager_dashboard
 
-    st.info(
-        "Module 7 — Manager Dashboard will be "
-        "implemented here."
-    )
+    render_manager_dashboard()

@@ -153,7 +153,16 @@ def map_speakers(
         AGENT
         CUSTOMER
 
-    Current MVP assumption:
+    Speaker mapping rules:
+
+        1 speaker:
+            speaker -> CUSTOMER
+
+        2+ speakers:
+            first detected speaker -> AGENT
+            second detected speaker -> CUSTOMER
+
+    Current MVP assumption for multi-speaker calls:
         first detected speaker = AGENT
         second detected speaker = CUSTOMER
     """
@@ -177,6 +186,31 @@ def map_speakers(
             speakers.append(
                 speaker
             )
+
+    # -----------------------------------------------------
+    # SINGLE SPEAKER
+    # -----------------------------------------------------
+
+    if len(speakers) == 1:
+
+        single_speaker = speakers[0]
+
+        for segment in segments:
+
+            if (
+                segment.get("speaker")
+                == single_speaker
+            ):
+
+                segment["speaker"] = (
+                    "CUSTOMER"
+                )
+
+        return segments
+
+    # -----------------------------------------------------
+    # MULTI SPEAKER
+    # -----------------------------------------------------
 
     agent_speaker = None
 

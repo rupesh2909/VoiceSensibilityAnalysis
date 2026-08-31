@@ -1,7 +1,7 @@
 import streamlit as st
 
-from agents.conversation_agent import (
-    ConversationAgent
+from module6.recommendation_ui import (
+    render_recommendation
 )
 
 from config.settings import (
@@ -1164,6 +1164,10 @@ def open_live_analysis(
 
     try:
 
+        from agents.conversation_agent import (
+            ConversationAgent
+        )
+
         agent = ConversationAgent(
             progress_callback=
                 progress_callback
@@ -1281,6 +1285,16 @@ def open_live_analysis(
             st.session_state[
                 "analysis_result"
             ] = result
+
+            # -------------------------------------------------
+            # Recommendation Engine
+            # -------------------------------------------------
+
+            render_recommendation(
+                result.get(
+                    "recommendation_decision"
+                )
+            )            
 
     except Exception as e:
 

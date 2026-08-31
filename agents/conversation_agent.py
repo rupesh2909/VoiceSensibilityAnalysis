@@ -247,15 +247,41 @@ Final action:
 
             if required_tool is None:
 
+                final_analysis = (
+                    self.build_final_analysis(
+                        state
+                    )
+                )
+
+                recommendation_decision = None
+
+                # -------------------------------------------------
+                # Get persisted recommendation decision
+                # -------------------------------------------------
+
+                churn_risk = (
+                    state.get(
+                        "churn_risk"
+                    )
+                    or {}
+                )
+
+                recommendation_decision = (
+                    churn_risk.get(
+                        "recommendation_decision"
+                    )
+                )
+
                 return {
 
                     "action":
                         "final",
 
                     "analysis":
-                        self.build_final_analysis(
-                            state
-                        ),
+                        final_analysis,
+
+                    "recommendation_decision":
+                        recommendation_decision,
 
                     "execution_trace":
                         execution_trace

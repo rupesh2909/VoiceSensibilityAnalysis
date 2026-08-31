@@ -62,7 +62,7 @@ DIARIZATION_MODEL = (
     "pyannote/speaker-diarization-community-1"
 )
 
-MIN_SPEAKERS = 2
+MIN_SPEAKERS = 1
 
 MAX_SPEAKERS = 2
 

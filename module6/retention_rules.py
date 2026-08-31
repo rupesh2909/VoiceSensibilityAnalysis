@@ -91,8 +91,10 @@ def contains_keyword(text, keywords):
 
 def rule_high_anger_high_value(
     sentiment_score,
+    anger_score=None,
     customer_value=None,
     call_duration=None,
+    anger_threshold=0.7,
 ):
     """
     Rule 1:
@@ -100,6 +102,7 @@ def rule_high_anger_high_value(
 
     Required:
         Sentiment Score < -0.7
+        Anger Score >= 0.70
         Customer Value = Gold / Platinum / High AUM
         Call Duration > 5 mins
     """
@@ -109,6 +112,7 @@ def rule_high_anger_high_value(
 
     try:
         score = float(sentiment_score)
+        anger = float(anger_score)
         duration = float(call_duration or 0)
     except (TypeError, ValueError):
         return None
@@ -123,6 +127,7 @@ def rule_high_anger_high_value(
 
     if (
         score < -0.7
+        and anger >= anger_threshold
         and high_value
         and duration > 300
     ):
@@ -131,9 +136,10 @@ def rule_high_anger_high_value(
             "name": "High Anger + High Customer Value",
             "priority": "CRITICAL",
             "reason": (
-                "Negative sentiment is below -0.7, "
-                "customer has high value and call "
-                "duration exceeds five minutes."
+                f"Sentiment score is below -0.7, "
+                f"anger score is {anger:.2f}, "
+                f"customer has high value and call "
+                f"duration exceeds five minutes."
             ),
             "recommendations": [
                 "Immediate Relationship Manager callback within 2 hours",
@@ -209,17 +215,9 @@ def rule_digital_banking_frustration(
         or "AUTHENTICATION" in category
     )
 
-    digital_keywords = contains_keyword(
-        customer_text,
-        DIGITAL_BANKING_KEYWORDS
-    )
-
     if not (
         negative
-        and (
-            digital_root_cause
-            or digital_keywords
-        )
+        and digital_root_cause
     ):
         return None
 
@@ -554,6 +552,7 @@ def evaluate_rules(
     sentiment=None,
     sentiment_score=None,
     emotion=None,
+    anger_score=None,
     frustration_score=None,
     root_cause_category=None,
     churn_risk_score=None,
@@ -573,6 +572,7 @@ def evaluate_rules(
 
     result = rule_high_anger_high_value(
         sentiment_score,
+        anger_score,
         customer_value,
         call_duration,
     )
@@ -721,3 +721,207 @@ def get_highest_priority(
                 0
             )
     )
+
+# =========================================================
+# BUILD RECOMMENDATION DECISION
+# =========================================================
+
+def build_recommendation_decision(
+    triggered_rules,
+    churn_risk_score=None,
+    sentiment=None,
+):
+    """
+    Convert triggered retention rules into a
+    manager-friendly recommendation decision.
+
+    This function does not make new business decisions.
+    It only aggregates the deterministic rule results.
+    """
+
+    triggered_rules = (
+        triggered_rules
+        or []
+    )
+
+    # -----------------------------------------------------
+    # No recovery rule triggered
+    # -----------------------------------------------------
+
+    if not triggered_rules:
+
+        return {
+            "outcome":
+                "NO_IMMEDIATE_RECOVERY_REQUIRED",
+
+            "priority":
+                "LOW",
+
+            "primary_action":
+                "Continue normal servicing",
+
+            "response_time":
+                None,
+
+            "reason":
+                "No immediate recovery rule was triggered.",
+
+            "triggered_rules":
+                [],
+
+            "recommendations": [
+                "Continue normal servicing"
+            ],
+
+            "cross_sell_suppression":
+                False
+        }
+
+    # -----------------------------------------------------
+    # Overall priority
+    # -----------------------------------------------------
+
+    priority = (
+        get_highest_priority(
+            triggered_rules
+        )
+    )
+
+    # -----------------------------------------------------
+    # Aggregate recommendations
+    # -----------------------------------------------------
+
+    recommendations = (
+        aggregate_recommendations(
+            triggered_rules
+        )
+    )
+
+    # -----------------------------------------------------
+    # Cross-sell suppression
+    # -----------------------------------------------------
+
+    cross_sell_suppression = any(
+        rule.get("rule_id")
+        == "RULE_10"
+
+        for rule in triggered_rules
+    )
+
+    # -----------------------------------------------------
+    # Primary action / response time
+    # -----------------------------------------------------
+
+    primary_action = (
+        recommendations[0]
+        if recommendations
+        else "Manager review required"
+    )
+
+    response_time = None
+
+    rule_ids = {
+        rule.get("rule_id")
+        for rule in triggered_rules
+    }
+
+    # Rule 2 — Fraud / Unauthorized Transaction
+    if "RULE_2" in rule_ids:
+
+        primary_action = (
+            "Trigger Fraud Investigation Workflow"
+        )
+
+        response_time = (
+            "Immediate"
+        )
+
+    # Rule 5 — Product Closure Intent
+    elif "RULE_5" in rule_ids:
+
+        primary_action = (
+            "Manager Callback"
+        )
+
+        response_time = (
+            "Immediate"
+        )
+
+    # Rule 1 — High Anger + High Customer Value
+    elif "RULE_1" in rule_ids:
+
+        primary_action = (
+            "Immediate Relationship Manager callback"
+        )
+
+        response_time = (
+            "Within 2 hours"
+        )
+
+    # Rule 9 — VIP Customer Dissatisfaction
+    elif "RULE_9" in rule_ids:
+
+        primary_action = (
+            "Branch Manager Notification"
+        )
+
+        response_time = (
+            "Within 2 hours"
+        )
+
+    # Any High-priority recovery
+    elif priority == "HIGH":
+
+        response_time = (
+            "Within 24 hours"
+        )
+
+    # Any Medium-priority recovery
+    elif priority == "MEDIUM":
+
+        response_time = (
+            "Within 48 hours"
+        )
+
+    # -----------------------------------------------------
+    # Explain why the recommendation was generated
+    # -----------------------------------------------------
+
+    reasons = []
+
+    for rule in triggered_rules:
+
+        reason = rule.get(
+            "reason"
+        )
+
+        if reason:
+            reasons.append(
+                reason
+            )
+
+    return {
+        "outcome":
+            "RECOVERY_REQUIRED",
+
+        "priority":
+            priority,
+
+        "primary_action":
+            primary_action,
+
+        "response_time":
+            response_time,
+
+        "reason":
+            reasons,
+
+        "triggered_rules":
+            triggered_rules,
+
+        "recommendations":
+            recommendations,
+
+        "cross_sell_suppression":
+            cross_sell_suppression
+    }    

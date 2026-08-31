@@ -1,3 +1,5 @@
+import json
+
 from database.database import (
     get_connection
 )
@@ -204,7 +206,8 @@ class DatabaseTool:
                     score_breakdown,
                     triggered_rules,
                     recommendations,
-                    cross_sell_suppression
+                    cross_sell_suppression,
+                    recommendation_decision
                 FROM churn_risk_analysis
                 WHERE call_id = ?
                 LIMIT 1
@@ -286,7 +289,21 @@ class DatabaseTool:
                 else None,
 
             "churn_risk":
-                dict(churn_risk)
-                if churn_risk
-                else None                
+                (
+                    {
+                        **dict(churn_risk),
+                        "recommendation_decision":
+                            json.loads(
+                                churn_risk[
+                                    "recommendation_decision"
+                                ]
+                            )
+                            if churn_risk[
+                                "recommendation_decision"
+                            ]
+                            else None
+                    }
+                    if churn_risk
+                    else None
+                )             
         }

@@ -1,3 +1,5 @@
+import json
+
 from database.database import get_connection
 
 from module6.churn_risk_service import (
@@ -7,7 +9,8 @@ from module6.churn_risk_service import (
 from module6.retention_rules import (
     evaluate_rules,
     aggregate_recommendations,
-    get_highest_priority
+    get_highest_priority,
+    build_recommendation_decision
 )
 
 
@@ -52,6 +55,142 @@ class ChurnRiskTool:
         self.service = (
             ChurnRiskService()
         )
+
+    # =====================================================
+    # CUSTOMER / HISTORY CONTEXT
+    # =====================================================
+
+    def get_customer_context(
+        self,
+        call_id
+    ):
+        """
+        Retrieve customer profile, current call metadata,
+        and 30-day complaint history.
+        """
+
+        with get_connection() as conn:
+
+            # ---------------------------------------------
+            # Current call + customer
+            # ---------------------------------------------
+
+            current = conn.execute(
+                """
+                SELECT
+                    c.call_id,
+                    c.customer_id,
+                    c.created_at AS call_created_at,
+                    cu.customer_name,
+                    cu.customer_segment,
+                    cu.customer_value,
+                    t.duration
+                FROM calls c
+
+                LEFT JOIN customers cu
+                    ON c.customer_id =
+                       cu.customer_id
+
+                LEFT JOIN transcripts t
+                    ON c.call_id =
+                       t.call_id
+
+                WHERE c.call_id = ?
+
+                LIMIT 1
+                """,
+                (call_id,)
+            ).fetchone()
+
+            if not current:
+                return None
+
+            customer_id = current[
+                "customer_id"
+            ]
+
+            # ---------------------------------------------
+            # 30-day call history
+            # ---------------------------------------------
+
+            history = []
+
+            if customer_id:
+
+                history = conn.execute(
+                    """
+                    SELECT
+                        c.call_id,
+                        c.created_at,
+                        drc.root_cause_category
+                    FROM calls c
+
+                    LEFT JOIN
+                        dissatisfaction_root_causes drc
+                        ON c.call_id =
+                           drc.call_id
+
+                    WHERE c.customer_id = ?
+
+                      AND datetime(c.created_at)
+                          >= datetime(
+                              'now',
+                              '-30 days'
+                          )
+
+                    ORDER BY
+                        datetime(c.created_at)
+                    """,
+                    (customer_id,)
+                ).fetchall()
+
+            return {
+                "customer_id":
+                    customer_id,
+
+                "customer_name":
+                    current[
+                        "customer_name"
+                    ],
+
+                "customer_segment":
+                    current[
+                        "customer_segment"
+                    ],
+
+                "customer_value":
+                    current[
+                        "customer_value"
+                    ],
+
+                "call_id":
+                    current[
+                        "call_id"
+                    ],
+
+                "call_created_at":
+                    current[
+                        "call_created_at"
+                    ],
+
+                "call_duration":
+                    current[
+                        "duration"
+                    ],
+
+                "customer_call_count_30d":
+                    len(history),
+
+                "previous_root_causes": [
+                    row[
+                        "root_cause_category"
+                    ]
+                    for row in history
+                    if row[
+                        "root_cause_category"
+                    ]
+                ]
+            }        
 
     # =====================================================
     # RUN
@@ -195,6 +334,63 @@ class ChurnRiskTool:
             }
 
         # =================================================
+        # CUSTOMER CONTEXT
+        # =================================================
+
+        customer_context = (
+            self.get_customer_context(
+                call_id
+            )
+        )
+
+        if not customer_context:
+
+            return {
+                "success": False,
+                "call_id": call_id,
+                "tool": self.name,
+                "error":
+                    "Customer context could not be found."
+            }
+
+        # ---------------------------------------------
+        # Similar issue
+        # ---------------------------------------------
+
+        current_root_cause = (
+            root_cause[
+                "root_cause_category"
+            ]
+        )
+
+        previous_root_causes = (
+            customer_context[
+                "previous_root_causes"
+            ]
+        )
+
+        similar_issue = False
+
+        if current_root_cause:
+
+            current_category = (
+                str(
+                    current_root_cause
+                )
+                .strip()
+                .upper()
+            )            
+
+            similar_issue = any(
+                str(previous).strip().upper()
+                ==
+                str(current_root_cause).strip().upper()
+
+                for previous
+                in previous_root_causes
+            )            
+
+        # =================================================
         # CALCULATE CHURN RISK
         # =================================================
 
@@ -249,11 +445,30 @@ class ChurnRiskTool:
             frustration_score=
                 emotion["frustration_score"],
 
+            anger_score=
+                emotion["anger_score"],
+
             root_cause_category=
                 root_cause["root_cause_category"],
 
             churn_risk_score=
-                result["churn_risk_score"]
+                result["churn_risk_score"],
+
+            customer_value=
+                customer_context["customer_value"],
+
+            call_duration=
+                customer_context["call_duration"],
+
+            customer_call_count_30d=
+                customer_context["customer_call_count_30d"
+            ],
+
+            similar_issue=
+                similar_issue,
+
+            customer_segment=
+                customer_context["customer_segment"]
         )
 
         recommendations = (
@@ -267,6 +482,20 @@ class ChurnRiskTool:
                 triggered_rules
             )
         )
+
+        # =================================================
+        # RECOMMENDATION DECISION
+        # =================================================
+
+        recommendation_decision = (
+            build_recommendation_decision(
+                triggered_rules,
+                churn_risk_score=
+                    result["churn_risk_score"],
+                sentiment=
+                    sentiment["sentiment"]
+            )
+        )        
 
         # =================================================
         # CROSS-SELL SUPPRESSION
@@ -301,9 +530,10 @@ class ChurnRiskTool:
                     triggered_rules,
                     recommendations,
                     cross_sell_suppression,
+                    recommendation_decision,
                     created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
 
                 ON CONFLICT(call_id)
                 DO UPDATE SET
@@ -334,6 +564,9 @@ class ChurnRiskTool:
 
                     cross_sell_suppression =
                         excluded.cross_sell_suppression,
+
+                    recommendation_decision =
+                        excluded.recommendation_decision,
 
                     created_at =
                         excluded.created_at
@@ -379,7 +612,10 @@ class ChurnRiskTool:
 
                     int(
                         cross_sell_suppression
-                    )
+                    ),
+                    json.dumps(
+                        recommendation_decision
+                    ),
                 )
             )
 
@@ -432,5 +668,8 @@ class ChurnRiskTool:
                 recommendations,
 
             "cross_sell_suppression":
-                cross_sell_suppression
+                cross_sell_suppression,
+
+            "recommendation_decision":
+                recommendation_decision
         }

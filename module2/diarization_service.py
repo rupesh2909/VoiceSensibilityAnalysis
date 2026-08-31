@@ -104,9 +104,9 @@ class DiarizationService:
         }
 
         output = self.pipeline(
-            audio,
-            min_speakers=MIN_SPEAKERS,
-            max_speakers=MAX_SPEAKERS
+            audio
+            # min_speakers=MIN_SPEAKERS,
+            # max_speakers=MAX_SPEAKERS
         )
 
         return (
