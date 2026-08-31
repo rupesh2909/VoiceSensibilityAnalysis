@@ -49,7 +49,7 @@ st.markdown(
 
     /* Use more of the screen */
     .block-container {
-        padding-top: 1rem;
+        padding-top: 1.25rem;
         padding-bottom: 0.5rem;
         max-width: 1500px;
     }
@@ -138,7 +138,8 @@ with tab_analyze:
 with tab_dashboard:
 
     st.header(
-        "📊 Manager Dashboard"
+        "📊 Manager Dashboard",
+        anchor=False
     )
 
     st.info(

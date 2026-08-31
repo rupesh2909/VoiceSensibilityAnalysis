@@ -1,8 +1,7 @@
 import streamlit as st
 
-from .analysis_worker import (
-    start_analysis,
-    get_analysis_status
+from agents.conversation_agent import (
+    ConversationAgent
 )
 
 from config.settings import (
@@ -789,7 +788,8 @@ def get_tool_summary(
 
 def render_live_progress(
     placeholder,
-    messages
+    messages,
+    analysis_completed=False
 ):
 
     tool_info = {
@@ -854,6 +854,10 @@ def render_live_progress(
         "analyze_customer_churn_risk"
     ]
 
+    # =====================================================
+    # LATEST STATE FOR EACH TOOL
+    # =====================================================
+
     latest = {}
 
     for item in messages:
@@ -863,254 +867,426 @@ def render_live_progress(
             ""
         )
 
-        latest[module] = item
+        if module in tool_info:
+
+            latest[module] = item
+
+    # =====================================================
+    # SENTIMENT
+    # =====================================================
+
+    sentiment_label = ""
+
+    sentiment_item = latest.get(
+        "analyze_customer_sentiment"
+    )
+
+    if sentiment_item:
+
+        sentiment_result = sentiment_item.get(
+            "result"
+        )
+
+        if isinstance(
+            sentiment_result,
+            dict
+        ):
+
+            nested_result = (
+                sentiment_result.get(
+                    "result"
+                )
+            )
+
+            if isinstance(
+                nested_result,
+                dict
+            ):
+
+                sentiment_result = nested_result
+
+            sentiment_label = str(
+                sentiment_result.get(
+                    "sentiment",
+                    ""
+                )
+            ).upper()
+
+    # =====================================================
+    # RENDER
+    # =====================================================
 
     with placeholder.container():
 
+        columns = st.columns(
+            7,
+            gap="small"
+        )
+
         completed = 0
 
-        # =================================================
-        # TWO COLUMN LAYOUT
-        # =================================================
-
-        for row_start in range(
-            0,
-            len(tool_order),
-            2
+        for column, module in zip(
+            columns,
+            tool_order
         ):
 
-            row_modules = tool_order[
-                row_start:
-                row_start + 2
-            ]
+            with column:
 
-            columns = st.columns(
-                2,
-                gap="small"
-            )
+                item = latest.get(
+                    module
+                )
 
-            for column, module in zip(
-                columns,
-                row_modules
-            ):
+                info = tool_info[
+                    module
+                ]
 
-                with column:
+                label = info[
+                    "label"
+                ]
 
-                    item = latest.get(
-                        module
+                description = info[
+                    "description"
+                ]
+
+                # =========================================
+                # TOOL HAS AN EVENT
+                # =========================================
+
+                if item is not None:
+
+                    status = item.get(
+                        "status",
+                        "running"
                     )
 
-                    info = tool_info[
-                        module
-                    ]
+                    result = item.get(
+                        "result"
+                    )
 
-                    label = info[
-                        "label"
-                    ]
+                    # -------------------------------------
+                    # RUNNING
+                    # -------------------------------------
 
-                    description = info[
-                        "description"
-                    ]
+                    if status == "running":
 
-                    # -----------------------------------------
-                    # STATUS
-                    # -----------------------------------------
+                        st.info(
+                            f"🔄 **{label}**\n\n"
+                            f"{description}"
+                        )
 
-                    if item is None:
+                    # -------------------------------------
+                    # SUCCESS
+                    # -------------------------------------
+
+                    elif status == "success":
+
+                        completed += 1
+
+                        summary = get_tool_summary(
+                            module,
+                            result
+                        )
+
+                        detail = (
+                            summary
+                            if summary
+                            else
+                            "Processing completed successfully."
+                        )
+
+                        st.success(
+                            f"✓ **{label}**\n\n"
+                            f"{detail}"
+                        )
+
+                    # -------------------------------------
+                    # ERROR
+                    # -------------------------------------
+
+                    elif status == "error":
+
+                        st.error(
+                            f"❌ **{label}**\n\n"
+                            f"{item.get(
+                                'message',
+                                'Processing failed.'
+                            )}"
+                        )
+
+                    # -------------------------------------
+                    # UNKNOWN
+                    # -------------------------------------
+
+                    else:
 
                         st.info(
                             f"○ **{label}**\n\n"
                             f"{description}"
                         )
 
-                    else:
+                # =========================================
+                # NO EVENT YET
+                # =========================================
 
-                        status = item.get(
-                            "status",
-                            "running"
-                        )
+                else:
 
-                        result = item.get(
-                            "result"
-                        )
+                    # -------------------------------------
+                    # CONDITIONAL TOOL SKIPPED
+                    # ONLY AFTER COMPLETE
+                    # -------------------------------------
 
-                        # -------------------------------------
-                        # RUNNING
-                        # -------------------------------------
+                    if (
+                        analysis_completed
+                        and module
+                        == "identify_dissatisfaction_root_cause"
+                    ):
 
-                        if status == "running":
+                        if sentiment_label:
 
-                            st.info(
-                                f"🔄 **{label}**\n\n"
-                                f"{description}"
+                            sentiment_text = (
+                                sentiment_label.lower()
                             )
 
-                        # -------------------------------------
-                        # SUCCESS
-                        # -------------------------------------
-
-                        elif status == "success":
-
-                            summary = get_tool_summary(
-                                module,
-                                result
+                            st.warning(
+                                f"⊘ **{label}**\n\n"
+                                f"Not run · Customer sentiment "
+                                f"was {sentiment_text}"
                             )
-
-                            completed += 1
-
-                            detail = (
-                                summary
-                                if summary
-                                else
-                                "Processing completed successfully."
-                            )
-
-                            st.success(
-                                f"✓ **{label}**\n\n{detail}"
-                            )
-
-                        # -------------------------------------
-                        # ERROR
-                        # -------------------------------------
-
-                        elif status == "error":
-
-                            st.error(
-                                f"❌ **{label}**\n\n"
-                                f"{item.get(
-                                    'message',
-                                    'Processing failed.'
-                                )}"
-                            )
-
-                        # -------------------------------------
-                        # UNKNOWN
-                        # -------------------------------------
 
                         else:
 
-                            st.info(
-                                f"○ **{label}**\n\n"
-                                f"{description}"
+                            st.warning(
+                                f"⊘ **{label}**\n\n"
+                                "Not run · Root cause "
+                                "analysis was not required"
                             )
 
+                    elif (
+                        analysis_completed
+                        and module
+                        == "analyze_customer_churn_risk"
+                    ):
+
+                        st.warning(
+                            f"⊘ **{label}**\n\n"
+                            "Not run · No dissatisfaction/"
+                            "churn signal detected"
+                        )
+
+                    # -------------------------------------
+                    # STILL WAITING
+                    # -------------------------------------
+
+                    else:
+
+                        st.info(
+                            f"○ **{label}**\n\n"
+                            f"{description}"
+                        )
+
         # =================================================
-        # PROGRESS
+        # PROGRESS COUNT
         # =================================================
 
-        total = 7
+        total = len(
+            tool_order
+        )
 
         st.caption(
             f"**{completed} of {total}** "
             "analysis steps completed"
         )
 
-@st.dialog(
-    "🤖 AI Analysis",
-    width="small",
-    dismissible=True
-)
+# @st.dialog(
+#     "🤖 AI Analysis",
+#     width="small",
+#     dismissible=True
+# )
 def open_live_analysis(
     call_id
 ):
+
+    status_placeholder = st.empty()
+
+    # st.subheader(
+    #     "🤖 AI Analysis",
+    #     anchor=False
+    # )
 
     st.caption(
         f"Processing call `{call_id}`"
     )
 
+    status_placeholder.info(
+        "🔄 AI analysis in progress..."
+    )    
+
     # -------------------------------------------------
-    # Auto-refreshing fragment
+    # Progress state
     # -------------------------------------------------
 
-    @st.fragment(
-        run_every=0.75
-    )
-    def live_status():
+    progress_state = {}
 
-        job = get_analysis_status(
-            call_id
+    # -------------------------------------------------
+    # Progress UI
+    # -------------------------------------------------
+
+    progress_placeholder = st.empty()
+
+    def progress_callback(
+        progress
+    ):
+
+        module = progress.get(
+            "module",
+            ""
         )
 
-        if job is None:
-
-            st.warning(
-                "Analysis job could not be found."
-            )
-
-            return
-
-        messages = job.get(
-            "messages",
-            []
-        )
-
-        status = job.get(
-            "status"
-        )
-
+        progress_state[
+            module
+        ] = progress
 
         # ---------------------------------------------
-        # Progress
+        # Immediately redraw the 7 cards
         # ---------------------------------------------
 
         render_live_progress(
-            st.empty(),
-            messages
+            progress_placeholder,
+            list(
+                progress_state.values()
+            ),
+            analysis_completed=False
         )
 
-        # ---------------------------------------------
-        # Starting / model loading
-        # ---------------------------------------------
+    # -------------------------------------------------
+    # Run agent
+    # -------------------------------------------------
 
-        if not messages:
+    try:
 
-            st.info(
-                "🔄 Initializing AI analysis and "
-                "loading required models..."
+        agent = ConversationAgent(
+            progress_callback=
+                progress_callback
+        )
+
+        result = agent.analyze_call(
+            call_id
+        )
+
+        # =================================================
+        # FINAL PROGRESS SNAPSHOT
+        # =================================================
+
+        final_progress = {}
+
+        for event in result.get(
+            "execution_trace",
+            []
+        ):
+
+            tool_name = event.get(
+                "tool"
             )
 
+            tool_result = event.get(
+                "result"
+            )
+
+            if not tool_name:
+                continue
+
+            if isinstance(
+                tool_result,
+                dict
+            ) and tool_result.get(
+                "success",
+                False
+            ):
+
+                final_progress[
+                    tool_name
+                ] = {
+
+                    "module":
+                        tool_name,
+
+                    "status":
+                        "success",
+
+                    "message":
+                        "Processing completed successfully.",
+
+                    "result":
+                        tool_result
+                }
+
+            else:
+
+                final_progress[
+                    tool_name
+                ] = {
+
+                    "module":
+                        tool_name,
+
+                    "status":
+                        "error",
+
+                    "message":
+                        (
+                            tool_result.get(
+                                "error",
+                                "Processing failed."
+                            )
+                            if isinstance(
+                                tool_result,
+                                dict
+                            )
+                            else
+                            "Processing failed."
+                        ),
+
+                    "result":
+                        tool_result
+                }
+
         # ---------------------------------------------
-        # Job status
+        # Render final state
         # ---------------------------------------------
 
-        if status == "completed":
+        render_live_progress(
+            progress_placeholder,
+            list(
+                final_progress.values()
+            ),
+            analysis_completed=True
+        )        
 
-            st.success(
+        # ---------------------------------------------
+        # Final status
+        # ---------------------------------------------
+
+        if result.get(
+            "action"
+        ) == "final":
+
+            status_placeholder.success(
                 "✅ Analysis completed successfully."
             )
 
             st.session_state[
-                "analysis_complete"
+                "analysis_completed"
             ] = True
 
             st.session_state[
                 "analysis_result"
-            ] = job.get(
-                "result"
-            )
+            ] = result
 
-        elif status == "failed":
+    except Exception as e:
 
-            st.error(
-                "❌ Analysis failed."
-            )
-
-            if job.get("error"):
-
-                st.caption(
-                    job["error"]
-                )
-
-        elif status in (
-            "queued",
-            "running"
-        ):
-
-            # Analysis is still running.
-            # Do not show a completion message.
-            pass
-
-    live_status()                                 
+        status_placeholder.error(
+            f"❌ Analysis failed: {e}"
+        )                     
                         
 # def render_analysis_results(
 #     placeholder,
@@ -1525,11 +1701,6 @@ def run_module1():
         "analysis_started"
     ] = True
 
-    st.success(
-        f"Call `{call_id}` is ready. "
-        "Starting AI analysis..."
-    )
-
     # =====================================================
     # AGENTIC ANALYSIS
     # =====================================================
@@ -1539,7 +1710,7 @@ def run_module1():
     ] = call_id
 
     st.session_state[
-        "analysis_complete"
+        "analysis_completed"
     ] = False
 
     st.session_state[
@@ -1550,12 +1721,8 @@ def run_module1():
     # Start background worker
     # -----------------------------------------------------
 
-    start_analysis(
-        call_id
-    )
-
     open_live_analysis(
         call_id
-    )        
+    )    
 
 
