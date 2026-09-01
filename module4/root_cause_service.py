@@ -29,35 +29,6 @@ class RootCauseService:
 
     from config.settings import ROOT_CAUSE_CATEGORIES
 
-    # ROOT_CAUSE_CATEGORIES = [
-
-    #     "Fees / Charges",
-
-    #     "Fraud / Unauthorized Transaction",
-
-    #     "Mobile Banking",
-
-    #     "Internet Banking",
-
-    #     "Login / Authentication",
-
-    #     "Loan Processing",
-
-    #     "Account Opening",
-
-    #     "Card Issue",
-
-    #     "Service Delay",
-
-    #     "Product Features",
-
-    #     "Pricing / Interest Rate",
-
-    #     "Poor Customer Service",
-
-    #     "Other"
-    # ]
-
     # =====================================================
     # ALLOWED SEVERITY VALUES
     # =====================================================

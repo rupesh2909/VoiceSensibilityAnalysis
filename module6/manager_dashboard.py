@@ -68,6 +68,27 @@ def get_manager_dashboard_data():
 
         customers = conn.execute(
             """
+            WITH latest_customers AS (
+
+                SELECT
+                    c.customer_id
+                FROM customers c
+
+                INNER JOIN calls call
+                    ON call.customer_id = c.customer_id
+
+                INNER JOIN churn_risk_analysis cra
+                    ON cra.call_id = call.call_id
+
+                GROUP BY
+                    c.customer_id
+
+                ORDER BY
+                    MAX(cra.created_at) DESC
+
+                LIMIT 6
+            )
+
             SELECT
                 c.customer_id,
                 c.customer_name,
@@ -108,6 +129,9 @@ def get_manager_dashboard_data():
 
             FROM customers c
 
+            INNER JOIN latest_customers lc
+                ON lc.customer_id = c.customer_id
+
             INNER JOIN calls call
                 ON call.customer_id = c.customer_id
 
@@ -121,8 +145,7 @@ def get_manager_dashboard_data():
                 c.customer_value
 
             ORDER BY
-                max_churn_risk DESC,
-                latest_analysis DESC
+                latest_analysis DESC;
             """
         ).fetchall()
 

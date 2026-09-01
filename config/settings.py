@@ -62,7 +62,7 @@ DIARIZATION_MODEL = (
     "pyannote/speaker-diarization-community-1"
 )
 
-MIN_SPEAKERS = 1
+MIN_SPEAKERS = 2
 
 MAX_SPEAKERS = 2
 
@@ -219,3 +219,22 @@ ROOT_CAUSE_CATEGORIES = [
 ]
 
 ROOT_CAUSE_CONFIDENCE_THRESHOLD = 0.40
+
+# =========================================================
+# RETENTION RULE THRESHOLDS
+# =========================================================
+
+RETENTION_SENTIMENT_THRESHOLD = 0.70
+
+RETENTION_ANGER_THRESHOLD = 0.70
+
+CUSTOMER_VALUE_OPTIONS = [
+    "GOLD",
+    "PLATINUM",
+    "HIGH AUM"
+]
+
+HIGH_VALUE_CUSTOMER_VALUES = {
+    "HIGH AUM",
+    "PLATINUM",
+}

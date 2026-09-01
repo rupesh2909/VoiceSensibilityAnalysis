@@ -21,7 +21,7 @@ OUTPUT_DIR.mkdir(
 
 OUTPUT_FILE = (
     OUTPUT_DIR
-    / "ABC_Bank_male_agent_female_customer.wav"
+    / "Positive_customer.wav"
 )
 
 
@@ -45,7 +45,7 @@ OUTPUT_FILE = (
 
 AGENT_MODEL = (
     MODEL_DIR
-    / "en_US-lessac-medium.onnx"
+    / "en_US-ryan-medium.onnx"
 )
 
 CUSTOMER_MODEL = (
@@ -63,68 +63,60 @@ DIALOGUE = [
     (
         "AGENT",
         "Thank you for calling ABC Bank. "
-        "My name is Rahul. How may I help you today?"
+        "My name is David. How may I help you today?"
     ),
 
     (
         "CUSTOMER",
-        "I am really frustrated. "
-        "I have been charged a fee on my account "
-        "that I was never told about."
+        "Hi David. I would like to know if I can increase the limit on my credit card"
     ),
 
     (
         "AGENT",
-        "I understand. Let me check the account "
-        "and see what happened."
+        "Certainly, I can explain the process"
+        "We can submit a credit limit after checking your eligibility"
     ),
 
     (
         "CUSTOMER",
-        "This is not the first time. "
-        "I have already called twice this month "
-        "about this issue and nobody has solved it."
+        "What document do I need?"
     ),
 
     (
         "AGENT",
-        "I am sorry you have had to call multiple times. "
-        "I can remove the charge and check whether "
-        "it is eligible for reversal."
+        "We need your recent income document."
     ),
 
     (
         "CUSTOMER",
-        "Honestly, I am tired of dealing with this. "
-        "If this is not fixed today, I am going to "
-        "close my account and move my money to another bank."
+        "That sounds easy "
+        "Can I submit it today "
     ),
 
     (
         "AGENT",
-        "I understand your concern. "
-        "I will escalate this to our service recovery team "
-        "and check the fee reversal eligibility."
+        "Yes, I can explain the steps and if you face any difficulty, our support team can assist you"
     ),
 
     (
         "CUSTOMER",
-        "Please do not. "
-        "I just want someone to take responsibility "
-        "and remove it."
+        "Perfect. Thank you for explaining everything so clearly"
     ),
 
     (
         "AGENT",
-        "Absolutely. I will create a priority case "
-        "and arrange a callback from a relationship manager "
-        "within two hours."
+        "You are very welcome. Is there anything else I can help you with?"
     ),
 
     (
         "CUSTOMER",
-        "Fine. I hope this time someone actually follows up with me."
+        "No, not at all. Thanks for your help. Have a great day."
     ),
+
+    (
+        "AGENT",
+        "You too. Thank you for banking with ABC Bank."
+    ),    
 ]
 
 

@@ -468,7 +468,10 @@ class ChurnRiskTool:
                 similar_issue,
 
             customer_segment=
-                customer_context["customer_segment"]
+                customer_context["customer_segment"],
+
+            closure_intent=
+                result["closure_intent"]
         )
 
         recommendations = (

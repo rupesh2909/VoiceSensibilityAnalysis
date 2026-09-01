@@ -10,6 +10,11 @@ It does not use Qwen3 to invent recommendations.
 
 import re
 
+from config.settings import (
+    RETENTION_SENTIMENT_THRESHOLD,
+    RETENTION_ANGER_THRESHOLD,
+    HIGH_VALUE_CUSTOMER_VALUES,
+)
 
 # =========================================================
 # PRIORITY RANKING
@@ -90,57 +95,79 @@ def contains_keyword(text, keywords):
 # =========================================================
 
 def rule_high_anger_high_value(
+    sentiment,
     sentiment_score,
     anger_score=None,
     customer_value=None,
-    call_duration=None,
-    anger_threshold=0.7,
+    call_duration=None
 ):
     """
     Rule 1:
     High Anger + High Customer Value
 
     Required:
-        Sentiment Score < -0.7
+        Sentiment = NEGATIVE
+        Sentiment confidence >= 0.70
         Anger Score >= 0.70
-        Customer Value = Gold / Platinum / High AUM
-        Call Duration > 5 mins
+        Customer Value = Platinum / High AUM
     """
 
     if customer_value is None:
         return None
 
     try:
-        score = float(sentiment_score)
-        anger = float(anger_score)
-        duration = float(call_duration or 0)
-    except (TypeError, ValueError):
+        score = float(
+            sentiment_score
+        )
+
+        anger = float(
+            anger_score
+        )
+
+        duration = float(
+            call_duration or 0
+        )
+
+    except (
+        TypeError,
+        ValueError
+    ):
         return None
 
     high_value = str(
         customer_value
-    ).upper() in {
-        "GOLD",
-        "PLATINUM",
-        "HIGH AUM",
-    }
+    ).upper() in HIGH_VALUE_CUSTOMER_VALUES
+
+    negative = (
+        str(
+            sentiment or ""
+        ).upper()
+        == "NEGATIVE"
+    )
 
     if (
-        score < -0.7
-        and anger >= anger_threshold
+        negative
+        and score >= RETENTION_SENTIMENT_THRESHOLD
+        and anger >= RETENTION_ANGER_THRESHOLD
         and high_value
-        and duration > 300
     ):
+
         return {
             "rule_id": "RULE_1",
-            "name": "High Anger + High Customer Value",
-            "priority": "CRITICAL",
+
+            "name":
+                "High Anger + High Customer Value",
+
+            "priority":
+                "CRITICAL",
+
             "reason": (
-                f"Sentiment score is below -0.7, "
+                "Customer sentiment is strongly negative "
+                f"(confidence {score:.2f}), "
                 f"anger score is {anger:.2f}, "
-                f"customer has high value and call "
-                f"duration exceeds five minutes."
+                "and customer has high value."
             ),
+
             "recommendations": [
                 "Immediate Relationship Manager callback within 2 hours",
                 "Service Recovery Case creation",
@@ -285,16 +312,13 @@ def rule_repeated_complaint(
 # RULE 5
 # =========================================================
 
-def rule_product_closure_intent(customer_text):
+def rule_product_closure_intent(closure_intent):
     """
     Rule 5:
     Product Closure Intent
     """
 
-    if not contains_keyword(
-        customer_text,
-        CLOSURE_KEYWORDS
-    ):
+    if closure_intent != "YES":
         return None
 
     return {
@@ -459,8 +483,7 @@ def rule_vip_dissatisfaction(
     vip = str(
         customer_segment
     ).upper() in {
-        "HNI",
-        "WEALTH",
+        "PREMIUM",
         "CORPORATE",
     }
 
@@ -561,6 +584,7 @@ def evaluate_rules(
     customer_call_count_30d=None,
     similar_issue=False,
     customer_segment=None,
+    closure_intent=None,
 ):
     """
     Evaluate all MVP retention rules.
@@ -571,6 +595,7 @@ def evaluate_rules(
     rules = []
 
     result = rule_high_anger_high_value(
+        sentiment,
         sentiment_score,
         anger_score,
         customer_value,
@@ -605,7 +630,7 @@ def evaluate_rules(
         rules.append(result)
 
     result = rule_product_closure_intent(
-        customer_text
+        closure_intent
     )
 
     if result:

@@ -288,14 +288,13 @@ def render_customer_information():
 
     with col_value:
 
+        from config.settings import (
+            CUSTOMER_VALUE_OPTIONS
+        )
+
         st.selectbox(
             "Customer Value",
-            [
-                "STANDARD",
-                "SILVER",
-                "GOLD",
-                "PLATINUM"
-            ],
+            CUSTOMER_VALUE_OPTIONS,
             key="customer_value",
             disabled=(
                 st.session_state[
@@ -421,9 +420,9 @@ def render_file_selection():
             selected_source = "UPLOAD"
             selected_file = uploaded_file
 
-            st.success(
-                f"Selected: {uploaded_file.name}"
-            )
+            # st.success(
+            #     f"Selected: {uploaded_file.name}"
+            # )
 
     # -----------------------------------------------------
     # SAMPLE FILES
@@ -445,6 +444,20 @@ def render_file_selection():
                 file.name: file
                 for file in sample_files
             }
+
+            st.markdown(
+                """
+                <style>
+                div[data-testid="stRadio"] > div[role="radiogroup"] {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    column-gap: 30px;
+                    row-gap: 8px;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True
+            )            
 
             selected_name = st.radio(
                 "Available sample recordings",
@@ -650,7 +663,7 @@ def get_tool_summary(
         if speaker_count is not None:
 
             return (
-                f"{speaker_count} speakers detected"
+                f"{speaker_count} speaker(s) detected"
             )
 
     # -----------------------------------------------------

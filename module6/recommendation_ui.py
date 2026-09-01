@@ -76,7 +76,18 @@ def render_recommendation(
     """
 
     if not recommendation_decision:
-        return
+        recommendation_decision = {
+            "outcome": "NO_IMMEDIATE_RECOVERY_REQUIRED",
+            "priority": "LOW",
+            "primary_action": "Continue normal servicing",
+            "response_time": None,
+            "reason": "No retention or recovery rule was triggered.",
+            "triggered_rules": [],
+            "recommendations": [
+                "Continue normal servicing"
+            ],
+            "cross_sell_suppression": False,
+        }
 
     outcome = (
         recommendation_decision.get(
@@ -245,7 +256,7 @@ def render_recommendation(
     with col1:
 
         _render_list_card(
-            "WHY THIS CUSTOMER?",
+            "WHY THIS CUSTOMER IS AT RISK?",
             reasons,
             "⚠️"
         )
